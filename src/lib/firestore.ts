@@ -9,8 +9,26 @@ import {
   query,
   orderBy,
 } from 'firebase/firestore'
-import { db } from './firebase'
+import {
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signInWithPopup,
+  GoogleAuthProvider,
+} from 'firebase/auth'
+import { db, auth } from './firebase'
 import { UserSettings, AttendanceRecord } from '@/types'
+
+// Auth
+export async function login(email: string, pass: string) {
+  return signInWithEmailAndPassword(auth, email, pass)
+}
+export async function register(email: string, pass: string) {
+  return createUserWithEmailAndPassword(auth, email, pass)
+}
+export async function loginWithGoogle() {
+  const provider = new GoogleAuthProvider()
+  return signInWithPopup(auth, provider)
+}
 
 // Settings
 export async function getSettings(uid: string): Promise<UserSettings | null> {

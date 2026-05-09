@@ -1,7 +1,8 @@
 'use client'
 import { useState } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { ChevronLeft, ChevronRight, Info, Pencil, LogIn, LogOut, Trash2 } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Info, Pencil, LogIn, LogOut } from 'lucide-react'
+import { toast } from 'sonner'
 import { AttendanceRecord, UserSettings } from '@/types'
 import { formatTime, formatCurrency, isRestDay, isHoliday } from '@/lib/attendance'
 import {
@@ -12,7 +13,7 @@ import {
 interface Props {
   records: AttendanceRecord[]
   settings: UserSettings
-  onSaveRecord: (date: string, timeIn: string, timeOut: string | null, notes: string) => Promise<void>
+  onSaveRecord: (date: string, timeIn: string | null, timeOut: string | null, notes: string, isRestDay?: boolean) => Promise<void>
 }
 
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -22,6 +23,7 @@ type DayVariant = 'rest' | 'holiday' | 'future' | 'absent' | 'ot' | 'late' | 'pr
 function getDayVariant(date: Date, recordMap: Record<string, AttendanceRecord>, settings: UserSettings): DayVariant {
   const dateStr = format(date, 'yyyy-MM-dd')
   const record = recordMap[dateStr]
+  if (record?.isRestDay) return 'rest'
   if (isRestDay(dateStr, settings)) return 'rest'
   if (isHoliday(dateStr, settings)) return 'holiday'
   if (isFuture(date) && !isToday(date)) return 'future'
@@ -32,7 +34,7 @@ function getDayVariant(date: Date, recordMap: Record<string, AttendanceRecord>, 
 }
 
 const CELL_STYLES: Record<DayVariant, string> = {
-  rest:          'text-gray-400 bg-red-50/30',
+  rest:          'text-gray-600 bg-gray-200/60',
   holiday:       'text-purple-600 bg-purple-50',
   future:        'text-gray-300',
   absent:        'text-red-400 bg-red-50',
@@ -48,7 +50,7 @@ const LEGEND = [
   { label: 'Overtime', color: 'bg-orange-400' },
   { label: 'Absent',   color: 'bg-red-400' },
   { label: 'Holiday',  color: 'bg-purple-400' },
-  { label: 'Rest Day', color: 'bg-gray-200' },
+  { label: 'Rest Day', color: 'bg-gray-300' },
 ]
 
 interface EditState {
@@ -56,6 +58,7 @@ interface EditState {
   timeIn: string
   timeOut: string
   notes: string
+  isRestDay: boolean
   existing: AttendanceRecord | null
 }
 
@@ -82,12 +85,12 @@ export default function AttendanceCalendar({ records, settings, onSaveRecord }: 
     } else {
       // Open edit modal for blank day (absent/today)
       const variant = getDayVariant(date, recordMap, settings)
-      if (variant === 'rest' || variant === 'holiday') return
       setEditState({
         date: dateStr,
         timeIn: settings.startTime,
         timeOut: settings.endTime,
         notes: '',
+        isRestDay: variant === 'rest',
         existing: null,
       })
     }
@@ -100,6 +103,7 @@ export default function AttendanceCalendar({ records, settings, onSaveRecord }: 
       timeIn: record.timeIn,
       timeOut: record.timeOut ?? '',
       notes: record.notes ?? '',
+      isRestDay: record.isRestDay ?? false,
       existing: record,
     })
   }
@@ -109,12 +113,14 @@ export default function AttendanceCalendar({ records, settings, onSaveRecord }: 
     setSaving(true)
     await onSaveRecord(
       editState.date,
-      editState.timeIn,
-      editState.timeOut || null,
+      editState.isRestDay ? null : editState.timeIn,
+      editState.isRestDay ? null : (editState.timeOut || null),
       editState.notes,
+      editState.isRestDay,
     )
     setSaving(false)
     setEditState(null)
+    toast.success('Record updated successfully!')
   }
 
   return (
@@ -167,18 +173,17 @@ export default function AttendanceCalendar({ records, settings, onSaveRecord }: 
             const variant = getDayVariant(date, recordMap, settings)
             const today = isToday(date)
             const clickable = !isFuture(date) || today
-            const isRestOrHoliday = variant === 'rest' || variant === 'holiday'
 
             return (
               <button
                 key={dateStr}
-                onClick={() => clickable && !isRestOrHoliday && openDay(date)}
-                title={clickable && !isRestOrHoliday ? 'Click to view or edit' : undefined}
+                onClick={() => clickable && openDay(date)}
+                title={clickable ? 'Click to view or edit' : undefined}
                 className={`
                   relative h-9 flex items-center justify-center rounded-xl text-[11px] font-bold transition-all
                   ${CELL_STYLES[variant]}
                   ${today && variant !== 'today-empty' ? 'ring-2 ring-emerald-500 ring-offset-1' : ''}
-                  ${clickable && !isRestOrHoliday ? 'cursor-pointer hover:opacity-75 hover:scale-105' : 'cursor-default'}
+                  ${clickable ? 'cursor-pointer hover:opacity-75 hover:scale-105' : 'cursor-default'}
                 `}
               >
                 {format(date, 'd')}
@@ -205,39 +210,48 @@ export default function AttendanceCalendar({ records, settings, onSaveRecord }: 
               </DialogTitle>
             </DialogHeader>
             <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="bg-emerald-50 rounded-xl p-3.5 border border-emerald-100">
-                  <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-wide mb-1.5">Time In</p>
-                  <p className="font-extrabold text-gray-900">{formatTime(viewRecord.timeIn)}</p>
-                  {viewRecord.lateMinutes > 0 && (
-                    <p className="text-xs text-amber-500 font-semibold mt-1">{viewRecord.lateMinutes}min late</p>
-                  )}
+              {viewRecord.isRestDay ? (
+                <div className="bg-gray-100 rounded-2xl p-6 text-center border border-gray-200">
+                   <p className="text-lg font-extrabold text-gray-700">Rest Day</p>
+                   <p className="text-sm text-gray-400 mt-1">No attendance records for this day</p>
                 </div>
-                <div className="bg-red-50 rounded-xl p-3.5 border border-red-100">
-                  <p className="text-[10px] font-bold text-red-500 uppercase tracking-wide mb-1.5">Time Out</p>
-                  <p className="font-extrabold text-gray-900">{viewRecord.timeOut ? formatTime(viewRecord.timeOut) : '—'}</p>
-                  {viewRecord.isOT && (
-                    <p className="text-xs text-orange-500 font-semibold mt-1">+{viewRecord.otHours.toFixed(1)}h OT</p>
-                  )}
-                </div>
-              </div>
-
-              <div className="bg-gray-50 rounded-xl p-4 space-y-2.5">
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-500">Hours Worked</span>
-                  <span className="font-bold text-gray-900">{viewRecord.hoursWorked.toFixed(1)}h</span>
-                </div>
-                {viewRecord.lateDeduction > 0 && (
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-500">Late Deduction</span>
-                    <span className="font-bold text-red-500">-{formatCurrency(viewRecord.lateDeduction, settings.currency)}</span>
+              ) : (
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-emerald-50 rounded-xl p-3.5 border border-emerald-100">
+                    <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-wide mb-1.5">Time In</p>
+                    <p className="font-extrabold text-gray-900">{viewRecord.timeIn ? formatTime(viewRecord.timeIn) : '—'}</p>
+                    {viewRecord.lateMinutes > 0 && (
+                      <p className="text-xs text-amber-500 font-semibold mt-1">{viewRecord.lateMinutes}min late</p>
+                    )}
                   </div>
-                )}
-                <div className="flex justify-between text-sm border-t border-gray-200 pt-2">
-                  <span className="font-bold text-gray-900">Daily Earnings</span>
-                  <span className="font-extrabold text-emerald-600">{formatCurrency(viewRecord.dailyEarnings, settings.currency)}</span>
+                  <div className="bg-red-50 rounded-xl p-3.5 border border-red-100">
+                    <p className="text-[10px] font-bold text-red-500 uppercase tracking-wide mb-1.5">Time Out</p>
+                    <p className="font-extrabold text-gray-900">{viewRecord.timeOut ? formatTime(viewRecord.timeOut) : '—'}</p>
+                    {viewRecord.isOT && (
+                      <p className="text-xs text-orange-500 font-semibold mt-1">+{viewRecord.otHours.toFixed(1)}h OT</p>
+                    )}
+                  </div>
                 </div>
-              </div>
+              )}
+
+              {!viewRecord.isRestDay && (
+                <div className="bg-gray-50 rounded-xl p-4 space-y-2.5">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-500">Hours Worked</span>
+                    <span className="font-bold text-gray-900">{viewRecord.hoursWorked.toFixed(1)}h</span>
+                  </div>
+                  {viewRecord.lateDeduction > 0 && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-500">Late Deduction</span>
+                      <span className="font-bold text-red-500">-{formatCurrency(viewRecord.lateDeduction, settings.currency)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between text-sm border-t border-gray-200 pt-2">
+                    <span className="font-bold text-gray-900">Daily Earnings</span>
+                    <span className="font-extrabold text-emerald-600">{formatCurrency(viewRecord.dailyEarnings, settings.currency)}</span>
+                  </div>
+                </div>
+              )}
 
               {viewRecord.notes && (
                 <div className="bg-gray-50 rounded-xl p-3.5">
@@ -269,33 +283,52 @@ export default function AttendanceCalendar({ records, settings, onSaveRecord }: 
             </DialogHeader>
 
             <div className="space-y-4">
-              {/* Time In */}
-              <div className="space-y-1.5">
-                <label className="flex items-center gap-1.5 text-xs font-bold text-gray-600 uppercase tracking-wide">
-                  <LogIn className="w-3.5 h-3.5 text-emerald-500" /> Time In
-                </label>
-                <input
-                  type="time"
-                  value={editState.timeIn}
-                  onChange={(e) => setEditState((s) => s && ({ ...s, timeIn: e.target.value }))}
-                  className="w-full px-3.5 py-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-sm font-semibold text-gray-800 focus:outline-none focus:ring-2 focus:ring-emerald-400/30 cursor-pointer"
-                />
+              {/* Rest Day Toggle */}
+              <div className="flex items-center justify-between bg-gray-50 p-3 rounded-xl border border-gray-100">
+                <div>
+                  <p className="text-xs font-bold text-gray-700 uppercase tracking-wide">Rest Day</p>
+                  <p className="text-[10px] text-gray-400">Mark this day as a day off</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setEditState(s => s && ({ ...s, isRestDay: !s.isRestDay }))}
+                  className={`w-10 h-5 rounded-full transition-colors relative ${editState.isRestDay ? 'bg-emerald-500' : 'bg-gray-200'}`}
+                >
+                  <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${editState.isRestDay ? 'left-6' : 'left-1'}`} />
+                </button>
               </div>
 
-              {/* Time Out */}
-              <div className="space-y-1.5">
-                <label className="flex items-center gap-1.5 text-xs font-bold text-gray-600 uppercase tracking-wide">
-                  <LogOut className="w-3.5 h-3.5 text-red-500" /> Time Out
-                  <span className="text-gray-400 font-normal normal-case tracking-normal">(optional)</span>
-                </label>
-                <input
-                  type="time"
-                  value={editState.timeOut}
-                  onChange={(e) => setEditState((s) => s && ({ ...s, timeOut: e.target.value }))}
-                  className="w-full px-3.5 py-2.5 bg-red-50 border border-red-200 rounded-xl text-sm font-semibold text-gray-800 focus:outline-none focus:ring-2 focus:ring-red-400/30 cursor-pointer"
-                />
-                <p className="text-[11px] text-gray-400">Leave blank if you haven&apos;t clocked out yet.</p>
-              </div>
+              {!editState.isRestDay && (
+                <>
+                  {/* Time In */}
+                  <div className="space-y-1.5">
+                    <label className="flex items-center gap-1.5 text-xs font-bold text-gray-600 uppercase tracking-wide">
+                      <LogIn className="w-3.5 h-3.5 text-emerald-500" /> Time In
+                    </label>
+                    <input
+                      type="time"
+                      value={editState.timeIn}
+                      onChange={(e) => setEditState((s) => s && ({ ...s, timeIn: e.target.value }))}
+                      className="w-full px-3.5 py-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-sm font-semibold text-gray-800 focus:outline-none focus:ring-2 focus:ring-emerald-400/30 cursor-pointer"
+                    />
+                  </div>
+
+                  {/* Time Out */}
+                  <div className="space-y-1.5">
+                    <label className="flex items-center gap-1.5 text-xs font-bold text-gray-600 uppercase tracking-wide">
+                      <LogOut className="w-3.5 h-3.5 text-red-500" /> Time Out
+                      <span className="text-gray-400 font-normal normal-case tracking-normal">(optional)</span>
+                    </label>
+                    <input
+                      type="time"
+                      value={editState.timeOut}
+                      onChange={(e) => setEditState((s) => s && ({ ...s, timeOut: e.target.value }))}
+                      className="w-full px-3.5 py-2.5 bg-red-50 border border-red-200 rounded-xl text-sm font-semibold text-gray-800 focus:outline-none focus:ring-2 focus:ring-red-400/30 cursor-pointer"
+                    />
+                    <p className="text-[11px] text-gray-400">Leave blank if you haven&apos;t clocked out yet.</p>
+                  </div>
+                </>
+              )}
 
               {/* Notes */}
               <div className="space-y-1.5">
@@ -317,7 +350,7 @@ export default function AttendanceCalendar({ records, settings, onSaveRecord }: 
                 </button>
                 <button
                   onClick={handleSave}
-                  disabled={saving || !editState.timeIn}
+                  disabled={saving || (!editState.isRestDay && !editState.timeIn)}
                   className="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-60 text-white font-bold text-sm rounded-xl transition-colors cursor-pointer shadow-sm shadow-emerald-200"
                 >
                   {saving

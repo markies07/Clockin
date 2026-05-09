@@ -1,4 +1,4 @@
-import { AttendanceRecord } from '@/types'
+import { AttendanceRecord, UserSettings } from '@/types'
 import { format, endOfMonth, addMonths } from 'date-fns'
 
 /**
@@ -15,52 +15,57 @@ export interface PayPeriod {
   payDateLabel: string  // e.g. "May 25"
 }
 
-export function getPayPeriods(ref: Date = new Date()): { current: PayPeriod; next: PayPeriod } {
+export function getPayPeriods(settings: UserSettings, ref: Date = new Date()): { current: PayPeriod; next: PayPeriod } {
   const day = ref.getDate()
   const year = ref.getFullYear()
   const month = ref.getMonth()
 
-  const eom = endOfMonth(ref)
-  const eomStr = format(eom, 'yyyy-MM-dd')
+  const c1 = settings.payrollFirstCutoff || 15
+  const c2 = settings.payrollSecondCutoff || 0 // 0 means end of month
+  const p1 = settings.payrollFirstPayday || 25
+  const p2 = settings.payrollSecondPayday || 10
 
-  // Period A: 1–15, pay on 25th of same month
-  const pay25 = new Date(year, month, 25)
-  const periodA_thisMonth: PayPeriod = {
-    label: `${format(ref, 'MMM')} 1–15`,
-    cutoffStart: format(new Date(year, month, 1), 'yyyy-MM-dd'),
-    cutoffEnd:   format(new Date(year, month, 15), 'yyyy-MM-dd'),
-    payDate:     format(pay25, 'yyyy-MM-dd'),
-    payDateLabel: format(pay25, 'MMM d'),
+  function getEom(d: Date) {
+    return endOfMonth(d).getDate()
   }
 
-  // Period B: 16–EOM, pay on 10th of next month
+  function createPeriod(y: number, m: number, startDay: number, endDay: number, payDay: number, isNextMonthPay: boolean): PayPeriod {
+    const dStart = new Date(y, m, startDay)
+    const actualEndDay = endDay === 0 ? getEom(new Date(y, m, 1)) : endDay
+    const dEnd = new Date(y, m, actualEndDay)
+
+    let payYear = y
+    let payMonth = m
+    if (isNextMonthPay) {
+      payMonth++
+      if (payMonth > 11) { payMonth = 0; payYear++ }
+    }
+
+    const dPay = new Date(payYear, payMonth, payDay === 0 ? getEom(new Date(payYear, payMonth, 1)) : payDay)
+
+    return {
+      label: `${format(dStart, 'MMM')} ${startDay}–${actualEndDay === getEom(dStart) ? 'End of the Month' : actualEndDay}`,
+      cutoffStart: format(dStart, 'yyyy-MM-dd'),
+      cutoffEnd: format(dEnd, 'yyyy-MM-dd'),
+      payDate: format(dPay, 'yyyy-MM-dd'),
+      payDateLabel: format(dPay, 'MMM d'),
+    }
+  }
+
+  // Period 1: Start of month to C1 -> Pay on P1
+  const period1_this = createPeriod(year, month, 1, c1, p1, false)
+
+  // Period 2: C1+1 to C2 (or EOM) -> Pay on P2 (usually next month)
+  const period2_this = createPeriod(year, month, c1 + 1, c2, p2, true)
+
+  // Period 1 of next month
   const nextMonthDate = addMonths(ref, 1)
-  const nextYear = nextMonthDate.getFullYear()
-  const nextMonth = nextMonthDate.getMonth()
-  const pay10next = new Date(nextYear, nextMonth, 10)
+  const period1_next = createPeriod(nextMonthDate.getFullYear(), nextMonthDate.getMonth(), 1, c1, p1, false)
 
-  const periodB_thisMonth: PayPeriod = {
-    label: `${format(ref, 'MMM')} 16–${format(eom, 'd')}`,
-    cutoffStart: format(new Date(year, month, 16), 'yyyy-MM-dd'),
-    cutoffEnd:   eomStr,
-    payDate:     format(pay10next, 'yyyy-MM-dd'),
-    payDateLabel: format(pay10next, 'MMM d'),
-  }
-
-  // Period A of next month: 1–15, pay on 25th of next month
-  const pay25next = new Date(nextYear, nextMonth, 25)
-  const periodA_nextMonth: PayPeriod = {
-    label: `${format(nextMonthDate, 'MMM')} 1–15`,
-    cutoffStart: format(new Date(nextYear, nextMonth, 1), 'yyyy-MM-dd'),
-    cutoffEnd:   format(new Date(nextYear, nextMonth, 15), 'yyyy-MM-dd'),
-    payDate:     format(pay25next, 'yyyy-MM-dd'),
-    payDateLabel: format(pay25next, 'MMM d'),
-  }
-
-  if (day <= 15) {
-    return { current: periodA_thisMonth, next: periodB_thisMonth }
+  if (day <= c1) {
+    return { current: period1_this, next: period2_this }
   } else {
-    return { current: periodB_thisMonth, next: periodA_nextMonth }
+    return { current: period2_this, next: period1_next }
   }
 }
 

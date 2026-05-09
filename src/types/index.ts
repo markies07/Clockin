@@ -6,13 +6,19 @@ export interface UserSettings {
   endTime: string   // "17:00"
   rateType: 'daily' | 'hourly'
   rateAmount: number
-  currency: string
   otMultiplier: number
-  otThresholdMinutes: number
   holidayMultiplier: number
+  otThresholdMinutes: number
   restDays: number[] // 0=Sun,1=Mon,...,6=Sat
   holidays: string[] // ["2026-12-25"]
   darkMode: boolean
+  fixedRestDays: boolean      // true if rest days are same every week
+  fixedWorkingHours: boolean   // true if working hours are same every day
+  payrollFirstCutoff: number  // e.g. 15
+  payrollSecondCutoff: number // e.g. 0 for end of month
+  payrollFirstPayday: number  // e.g. 25
+  payrollSecondPayday: number // e.g. 10 (of next month)
+  currency?: string           // e.g. "₱"
   createdAt?: string
   updatedAt?: string
 }
@@ -22,7 +28,8 @@ export interface AttendanceRecord {
   date: string
   timeIn: string    // "08:05"
   timeOut: string | null
-  status: 'on-time' | 'late' | 'absent'
+  status: 'on-time' | 'late' | 'absent' | 'rest-day' | 'holiday'
+  isRestDay: boolean // manual rest day
   isOT: boolean
   isHoliday: boolean
   lateMinutes: number
@@ -34,5 +41,3 @@ export interface AttendanceRecord {
   createdAt?: string
   updatedAt?: string
 }
-
-export type AttendanceStatus = 'present' | 'late' | 'absent' | 'ot' | 'rest' | 'holiday'

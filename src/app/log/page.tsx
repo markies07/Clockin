@@ -7,7 +7,7 @@ import { useAttendance } from '@/hooks/useAttendance'
 import { formatTime, formatCurrency } from '@/lib/attendance'
 import { format, parseISO } from 'date-fns'
 import { useState } from 'react'
-import { Download, FileText, Info, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Download, FileText, ChevronLeft, ChevronRight } from 'lucide-react'
 import LogSkeleton from '@/components/skeletons/LogSkeleton'
 import BottomNav from '@/components/layout/BottomNav'
 import { cn } from '@/lib/utils'
@@ -56,9 +56,19 @@ function LogPage() {
   }
 
   const STATUS_STYLE: Record<string, string> = {
-    'on-time': 'bg-emerald-50 text-emerald-600 border border-emerald-100',
-    late:      'bg-amber-50 text-amber-600 border border-amber-100',
-    absent:    'bg-red-50 text-red-500 border border-red-100',
+    'on-time':  'bg-emerald-50 text-emerald-600 border border-emerald-100',
+    late:       'bg-amber-50 text-amber-600 border border-amber-100',
+    absent:     'bg-red-50 text-red-500 border border-red-100',
+    'rest-day': 'bg-gray-50 text-gray-400 border border-gray-200',
+    holiday:    'bg-purple-50 text-purple-600 border border-purple-100',
+  }
+
+  const STATUS_LABELS: Record<string, string> = {
+    'on-time':  'On Time',
+    late:       'Late',
+    absent:     'Absent',
+    'rest-day': 'Rest Day',
+    holiday:    'Holiday',
   }
 
   return (
@@ -127,7 +137,7 @@ function LogPage() {
                         <td className="px-4 py-3.5 text-gray-600">{r.hoursWorked > 0 ? `${r.hoursWorked.toFixed(1)}h` : <span className="text-gray-300">—</span>}</td>
                         <td className="px-4 py-3.5">
                           <span className={cn('text-[11px] px-2 py-1 rounded-full font-bold whitespace-nowrap', STATUS_STYLE[r.status] ?? '')}>
-                            {r.status === 'on-time' ? 'On Time' : r.status === 'late' ? 'Late' : 'Absent'}
+                            {STATUS_LABELS[r.status] || r.status}
                           </span>
                         </td>
                         <td className="px-4 py-3.5 text-amber-500 font-semibold">

@@ -14,7 +14,7 @@ export function computeRecord(
   timeOut: string | null,
   settings: UserSettings,
   isHoliday: boolean
-): Omit<AttendanceRecord, 'id' | 'date' | 'timeIn' | 'timeOut' | 'notes' | 'isHoliday' | 'createdAt' | 'updatedAt'> {
+): Omit<AttendanceRecord, 'id' | 'date' | 'timeIn' | 'timeOut' | 'notes' | 'isHoliday' | 'isRestDay' | 'createdAt' | 'updatedAt'> {
   const LUNCH_MINUTES = 60
 
   const startMinutes = timeToMinutes(settings.startTime)
@@ -28,7 +28,7 @@ export function computeRecord(
       : settings.rateAmount
 
   const inMinutes = timeToMinutes(timeIn)
-  const lateMinutes = Math.max(0, inMinutes - startMinutes)
+  const lateMinutes = settings.fixedWorkingHours ? Math.max(0, inMinutes - startMinutes) : 0
   const lateDeduction = lateMinutes * 1 // ₱1 per minute late
   const status: AttendanceRecord['status'] = lateMinutes > 0 ? 'late' : 'on-time'
 

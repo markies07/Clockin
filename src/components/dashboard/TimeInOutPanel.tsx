@@ -4,6 +4,7 @@ import { LogIn, LogOut, CheckCircle2, Info, Clock } from 'lucide-react'
 import { AttendanceRecord } from '@/types'
 import { formatTime, getCurrentTime } from '@/lib/attendance'
 import { format } from 'date-fns'
+import { toast } from 'sonner'
 
 interface Props {
   todayRecord: AttendanceRecord | null
@@ -37,12 +38,14 @@ export default function TimeInOutPanel({ todayRecord, startTime, onTimeIn, onTim
     setLoading(true)
     await onTimeIn(timeInValue)
     setLoading(false)
+    toast.success('Clocked in successfully!')
   }
 
   async function handleTimeOut() {
     setLoading(true)
     await onTimeOut(useCurrentTimeOut ? undefined : timeOutValue)
     setLoading(false)
+    toast.success('Clocked out successfully!')
   }
 
   async function handleNoteBlur() {
@@ -131,7 +134,7 @@ export default function TimeInOutPanel({ todayRecord, startTime, onTimeIn, onTim
               onChange={(e) => setTimeInValue(e.target.value)}
               className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-800 focus:outline-none focus:ring-2 focus:ring-emerald-400/30 focus:border-emerald-400 cursor-pointer"
             />
-            <p className="text-[11px] text-gray-400">Enter the time you actually arrived — even if you're logging in late.</p>
+            <p className="text-[11px] text-gray-400">Enter the time you actually arrived — even if you&apos;re logging in late.</p>
             <button
               onClick={handleTimeIn}
               disabled={loading}

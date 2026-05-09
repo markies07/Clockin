@@ -1,9 +1,10 @@
 'use client'
 import { AttendanceRecord, UserSettings } from '@/types'
-import { formatCurrency, getWorkingDaysInMonth } from '@/lib/attendance'
+import { formatCurrency, getWorkingDaysInMonth, maskCurrency } from '@/lib/attendance'
 import { format } from 'date-fns'
-import { TrendingUp, TrendingDown, CalendarClock } from 'lucide-react'
+import { TrendingUp, TrendingDown, CalendarClock, Eye, EyeOff } from 'lucide-react'
 import { getPayPeriods, earningsForPeriod } from '@/lib/payroll'
+import { useState } from 'react'
 
 interface Props {
   records: AttendanceRecord[]
@@ -42,18 +43,24 @@ export default function StatsCards({ records, settings }: Props) {
   const month = now.getMonth()
   const monthStr = format(now, 'yyyy-MM')
 
+  const [showSalary, setShowSalary] = useState(false)
   const monthRecords = records.filter((r) => r.date.startsWith(monthStr))
   const presentRecords = monthRecords.filter((r) => r.timeIn)
   const workingDays = getWorkingDaysInMonth(year, month, settings)
   const today = format(now, 'yyyy-MM-dd')
-  const pastWorkingDays = workingDays.filter((d) => d <= today)
+  const pastWorkingDays = workingDays.filter((d) => {
+    if (d > today) return false
+    const record = monthRecords.find((r) => r.date === d)
+    if (record?.isRestDay) return false
+    return true
+  })
   const absences = pastWorkingDays.filter(
     (d) => !monthRecords.find((r) => r.date === d && r.timeIn)
   ).length
   const totalOTHours = monthRecords.reduce((sum, r) => sum + (r.otHours || 0), 0)
 
   // Payroll cutoff logic
-  const { current: currentPeriod, next: nextPeriod } = getPayPeriods(now)
+  const { current: currentPeriod, next: nextPeriod } = getPayPeriods(settings, now)
   const periodEarnings = earningsForPeriod(records, currentPeriod)
   const nextPeriodEarnings = earningsForPeriod(records, nextPeriod)
 
@@ -71,7 +78,9 @@ export default function StatsCards({ records, settings }: Props) {
   const stats = [
     {
       label: 'Expected Salary',
-      value: formatCurrency(periodEarnings, settings.currency),
+      value: showSalary 
+        ? formatCurrency(periodEarnings, settings.currency) 
+        : maskCurrency(formatCurrency(periodEarnings, settings.currency)),
       sub: (
         <span>
           Period: <strong>{currentPeriod.label}</strong>
@@ -81,6 +90,15 @@ export default function StatsCards({ records, settings }: Props) {
       ),
       badge: { label: `${attendancePct}%`, positive: true },
       visual: <MiniBarChart values={salaryBars} color="#10b981" />,
+      action: (
+        <button 
+          onClick={() => setShowSalary(!showSalary)}
+          className="p-1 hover:bg-gray-100 rounded-md transition-colors text-gray-400 hover:text-gray-600 cursor-pointer"
+          title={showSalary ? "Hide Salary" : "Show Salary"}
+        >
+          {showSalary ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+        </button>
+      )
     },
     {
       label: 'Days Worked',
@@ -111,7 +129,10 @@ export default function StatsCards({ records, settings }: Props) {
         {stats.map(({ label, value, sub, badge, visual }) => (
           <div key={label} className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
             <div className="flex items-start justify-between mb-3">
-              <p className="text-sm font-semibold text-gray-500">{label}</p>
+              <div className="flex items-center gap-2">
+                <p className="text-sm font-semibold text-gray-500">{label}</p>
+                {(stats.find(s => s.label === label) as any)?.action}
+              </div>
               <span className={`flex items-center gap-0.5 text-[10px] font-bold px-2.5 py-1 rounded-full shrink-0 ml-1 ${
                 badge.positive ? 'bg-emerald-500 text-white' : 'bg-amber-400 text-white'
               }`}>

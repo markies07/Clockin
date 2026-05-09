@@ -1,11 +1,11 @@
 'use client'
 import { useApp } from '@/context/AppContext'
-import { format } from 'date-fns'
 import { LogOut, ChevronDown } from 'lucide-react'
 import { signOut } from 'firebase/auth'
 import { auth } from '@/lib/firebase'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
+import { toast } from 'sonner'
 
 export default function TopBar({ title }: { title: string }) {
   const { user, settings } = useApp()
@@ -18,6 +18,7 @@ export default function TopBar({ title }: { title: string }) {
 
   async function handleSignOut() {
     await signOut(auth)
+    toast.success('Signed out successfully')
     router.replace('/login')
   }
 

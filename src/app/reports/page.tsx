@@ -5,11 +5,10 @@ import Sidebar from '@/components/layout/Sidebar'
 import TopBar from '@/components/layout/TopBar'
 import { useApp } from '@/context/AppContext'
 import { useAttendance } from '@/hooks/useAttendance'
-import { formatCurrency, getWorkingDaysInMonth } from '@/lib/attendance'
+import { formatCurrency, getWorkingDaysInMonth, maskCurrency } from '@/lib/attendance'
 import { computeMonthlyEarnings } from '@/lib/salary'
-import { getPayPeriods, earningsForPeriod } from '@/lib/payroll'
 import { format, startOfWeek, endOfWeek, eachDayOfInterval, subWeeks } from 'date-fns'
-import { ChevronLeft, ChevronRight, Flame, Calendar, Clock, AlertCircle, TrendingUp, Info, CalendarClock } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Flame, Calendar, Clock, AlertCircle, TrendingUp, Info, Eye, EyeOff } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 import ReportsSkeleton from '@/components/skeletons/ReportsSkeleton'
 import BottomNav from '@/components/layout/BottomNav'
@@ -18,6 +17,7 @@ function ReportsPage() {
   const { user, settings } = useApp()
   const { records, loading } = useAttendance(user?.uid ?? null, settings)
   const [currentDate, setCurrentDate] = useState(new Date())
+  const [showSalary, setShowSalary] = useState(false)
 
   if (!settings) return null
 
@@ -28,7 +28,12 @@ function ReportsPage() {
   const presentRecords = monthRecords.filter((r) => r.timeIn)
   const workingDays = getWorkingDaysInMonth(year, month, settings)
   const today = format(new Date(), 'yyyy-MM-dd')
-  const pastWorkingDays = workingDays.filter((d) => d <= today)
+  const pastWorkingDays = workingDays.filter((d) => {
+    if (d > today) return false
+    const record = monthRecords.find((r) => r.date === d)
+    if (record?.isRestDay) return false
+    return true
+  })
   const absences = pastWorkingDays.filter((d) => !monthRecords.find((r) => r.date === d && r.timeIn)).length
   const lateDays = monthRecords.filter((r) => r.status === 'late').length
   const totalOTHours = monthRecords.reduce((sum, r) => sum + (r.otHours || 0), 0)
@@ -41,20 +46,7 @@ function ReportsPage() {
   const basePay = computeMonthlyEarnings(monthRecords) - totalOTPay + totalLateDeduction
   const totalSalary = computeMonthlyEarnings(monthRecords)
 
-  // Payroll periods
-  const { current: currentPeriod, next: nextPeriod } = getPayPeriods(currentDate)
-  const period1Earnings = earningsForPeriod(records, {
-    label: `${format(currentDate, 'MMM')} 1–15`,
-    cutoffStart: format(new Date(currentDate.getFullYear(), currentDate.getMonth(), 1), 'yyyy-MM-dd'),
-    cutoffEnd:   format(new Date(currentDate.getFullYear(), currentDate.getMonth(), 15), 'yyyy-MM-dd'),
-    payDate: '', payDateLabel: format(new Date(currentDate.getFullYear(), currentDate.getMonth(), 15), 'MMM 15'),
-  })
-  const period2Earnings = earningsForPeriod(records, {
-    label: `${format(currentDate, 'MMM')} 16–EOM`,
-    cutoffStart: format(new Date(currentDate.getFullYear(), currentDate.getMonth(), 16), 'yyyy-MM-dd'),
-    cutoffEnd:   format(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0), 'yyyy-MM-dd'),
-    payDate: '', payDateLabel: '',
-  })
+
 
   const sortedRecords = [...records].sort((a, b) => b.date.localeCompare(a.date))
   let streak = 0
@@ -132,7 +124,7 @@ function ReportsPage() {
 
           {/* Stats grid */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            {summaryStats.map(({ label, value, icon: Icon, badgeCls, textCls }) => (
+            {summaryStats.map(({ label, value, badgeCls, textCls }) => (
               <div key={label} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
                 <div className="flex items-start justify-between mb-3">
                   <p className="text-sm font-semibold text-gray-500">{label}</p>
@@ -152,14 +144,32 @@ function ReportsPage() {
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
               <div className="flex items-center gap-2 mb-5 pb-4 border-b border-gray-50">
                 <p className="font-bold text-gray-800 text-sm">Salary Breakdown</p>
+                <button 
+                  onClick={() => setShowSalary(!showSalary)}
+                  className="p-1 hover:bg-gray-100 rounded-md transition-colors text-gray-400 hover:text-gray-600 cursor-pointer ml-1"
+                >
+                  {showSalary ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                </button>
                 <Info className="w-3.5 h-3.5 text-gray-300" />
                 <span className="ml-auto text-xs text-gray-400">{format(currentDate, 'MMMM yyyy')}</span>
               </div>
               <div className="space-y-1">
                 {[
-                  { label: 'Base Pay',         value: formatCurrency(Math.max(0, basePay), settings.currency), cls: 'text-gray-900' },
-                  { label: 'Overtime Pay',      value: `+${formatCurrency(totalOTPay, settings.currency)}`,     cls: 'text-orange-500' },
-                  { label: 'Late Deductions',   value: `-${formatCurrency(totalLateDeduction, settings.currency)}`, cls: 'text-red-500' },
+                  { 
+                    label: 'Base Pay',         
+                    value: showSalary ? formatCurrency(Math.max(0, basePay), settings.currency) : maskCurrency(formatCurrency(Math.max(0, basePay), settings.currency)), 
+                    cls: 'text-gray-900' 
+                  },
+                  { 
+                    label: 'Overtime Pay',      
+                    value: showSalary ? `+${formatCurrency(totalOTPay, settings.currency)}` : `+${maskCurrency(formatCurrency(totalOTPay, settings.currency))}`,     
+                    cls: 'text-orange-500' 
+                  },
+                  { 
+                    label: 'Late Deductions',   
+                    value: showSalary ? `-${formatCurrency(totalLateDeduction, settings.currency)}` : `-${maskCurrency(formatCurrency(totalLateDeduction, settings.currency))}`, 
+                    cls: 'text-red-500' 
+                  },
                 ].map(({ label, value, cls }) => (
                   <div key={label} className="flex justify-between items-center py-3 border-b border-gray-50">
                     <span className="text-sm text-gray-500">{label}</span>
@@ -168,7 +178,9 @@ function ReportsPage() {
                 ))}
                 <div className="flex justify-between items-center pt-3">
                   <span className="font-bold text-gray-900 text-sm">Total Expected</span>
-                  <span className="font-extrabold text-emerald-600 text-lg">{formatCurrency(totalSalary, settings.currency)}</span>
+                  <span className="font-extrabold text-emerald-600 text-lg">
+                    {showSalary ? formatCurrency(totalSalary, settings.currency) : maskCurrency(formatCurrency(totalSalary, settings.currency))}
+                  </span>
                 </div>
               </div>
             </div>

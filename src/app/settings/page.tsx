@@ -3,7 +3,6 @@ import { useState, useEffect } from 'react'
 import AuthGuard from '@/components/AuthGuard'
 import Sidebar from '@/components/layout/Sidebar'
 import TopBar from '@/components/layout/TopBar'
-import { Switch } from '@/components/ui/switch'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import BottomNav from '@/components/layout/BottomNav'
 import { useApp } from '@/context/AppContext'
@@ -48,12 +47,18 @@ function SettingsPage() {
   const [name, setName] = useState('')
   const [startTime, setStartTime] = useState('08:00')
   const [endTime, setEndTime] = useState('17:00')
+  const [fixedWorkingHours, setFixedWorkingHours] = useState(true)
   const [rateType, setRateType] = useState<'daily' | 'hourly'>('daily')
   const [rateAmount, setRateAmount] = useState('')
   const [otMultiplier, setOtMultiplier] = useState('1.25')
   const [holidayMultiplier, setHolidayMultiplier] = useState('2')
   const [otThresholdMinutes, setOtThresholdMinutes] = useState('30')
   const [restDays, setRestDays] = useState<number[]>([])
+  const [fixedRestDays, setFixedRestDays] = useState(true)
+  const [cutoff1, setCutoff1] = useState('15')
+  const [cutoff2, setCutoff2] = useState('0')
+  const [payday1, setPayday1] = useState('25')
+  const [payday2, setPayday2] = useState('10')
   const [holidayInput, setHolidayInput] = useState('')
   const [showResetDialog, setShowResetDialog] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -64,12 +69,18 @@ function SettingsPage() {
     setName(settings.name)
     setStartTime(settings.startTime)
     setEndTime(settings.endTime)
+    setFixedWorkingHours(settings.fixedWorkingHours ?? true)
     setRateType(settings.rateType)
     setRateAmount(settings.rateAmount.toString())
     setOtMultiplier(settings.otMultiplier.toString())
     setHolidayMultiplier(settings.holidayMultiplier.toString())
     setOtThresholdMinutes(settings.otThresholdMinutes.toString())
     setRestDays(settings.restDays)
+    setFixedRestDays(settings.fixedRestDays ?? true)
+    setCutoff1(settings.payrollFirstCutoff?.toString() ?? '15')
+    setCutoff2(settings.payrollSecondCutoff?.toString() ?? '0')
+    setPayday1(settings.payrollFirstPayday?.toString() ?? '25')
+    setPayday2(settings.payrollSecondPayday?.toString() ?? '10')
   }, [settings])
 
   function toggleRestDay(day: number) {
@@ -87,18 +98,24 @@ function SettingsPage() {
   function removeHoliday(date: string) {
     if (!settings) return
     updateSettings({ holidays: settings.holidays.filter((h) => h !== date) })
+    toast.success('Holiday removed')
   }
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault()
     setSaving(true)
     await updateSettings({
-      name, startTime, endTime, rateType,
+      name, startTime, endTime, fixedWorkingHours, rateType,
       rateAmount: parseFloat(rateAmount) || 0,
       otMultiplier: parseFloat(otMultiplier) || 1.25,
       holidayMultiplier: parseFloat(holidayMultiplier) || 2,
       otThresholdMinutes: parseInt(otThresholdMinutes) || 30,
-      restDays,
+      restDays: fixedRestDays ? restDays : [],
+      fixedRestDays,
+      payrollFirstCutoff: parseInt(cutoff1) || 15,
+      payrollSecondCutoff: parseInt(cutoff2) || 0,
+      payrollFirstPayday: parseInt(payday1) || 25,
+      payrollSecondPayday: parseInt(payday2) || 10,
     })
     setSaving(false)
     toast.success('Settings saved!')
@@ -228,33 +245,58 @@ function SettingsPage() {
                       {activeTab === 'schedule' && (
                         <>
                           <Field label="Work Hours" hint="Your official start and end time">
-                            <div className="grid grid-cols-2 gap-3">
-                              <div>
-                                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block mb-1">Start</label>
-                                <input type="time" className={`${inputCls} cursor-pointer`} value={startTime} onChange={(e) => setStartTime(e.target.value)} />
+                            <div className="space-y-4">
+                              <div className="flex bg-gray-100 p-0.5 rounded-lg w-fit">
+                                <button type="button" onClick={() => setFixedWorkingHours(true)} className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all ${fixedWorkingHours ? 'bg-white text-emerald-600 shadow-sm' : 'text-gray-500'}`}>Fixed Hours</button>
+                                <button type="button" onClick={() => setFixedWorkingHours(false)} className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all ${!fixedWorkingHours ? 'bg-white text-emerald-600 shadow-sm' : 'text-gray-500'}`}>Flexible Schedule</button>
                               </div>
-                              <div>
-                                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block mb-1">End</label>
-                                <input type="time" className={`${inputCls} cursor-pointer`} value={endTime} onChange={(e) => setEndTime(e.target.value)} />
+
+                              <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block mb-1">{fixedWorkingHours ? 'Start' : 'Default Start'}</label>
+                                  <input type="time" className={`${inputCls} cursor-pointer`} value={startTime} onChange={(e) => setStartTime(e.target.value)} />
+                                </div>
+                                <div>
+                                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block mb-1">{fixedWorkingHours ? 'End' : 'Default End'}</label>
+                                  <input type="time" className={`${inputCls} cursor-pointer`} value={endTime} onChange={(e) => setEndTime(e.target.value)} />
+                                </div>
                               </div>
+                              {!fixedWorkingHours && (
+                                <p className="text-[10px] text-gray-400 leading-tight italic mt-1 px-1">
+                                  * Flexible time means no late deductions are applied.
+                                </p>
+                              )}
                             </div>
                           </Field>
                           <Field label="Rest Days" hint="Days off that won't count as absent">
-                            <div className="flex gap-2 flex-wrap">
-                              {DAYS.map((d, i) => (
-                                <button
-                                  type="button"
-                                  key={d}
-                                  onClick={() => toggleRestDay(i)}
-                                  className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                                    restDays.includes(i)
-                                      ? 'bg-emerald-500 text-white'
-                                      : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                                  }`}
-                                >
-                                  {d}
-                                </button>
-                              ))}
+                            <div className="space-y-4">
+                              <div className="flex bg-gray-100 p-0.5 rounded-lg w-fit">
+                                <button type="button" onClick={() => setFixedRestDays(true)} className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all ${fixedRestDays ? 'bg-white text-emerald-600 shadow-sm' : 'text-gray-500'}`}>Fixed Schedule</button>
+                                <button type="button" onClick={() => setFixedRestDays(false)} className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all ${!fixedRestDays ? 'bg-white text-emerald-600 shadow-sm' : 'text-gray-500'}`}>Flexible / Manual</button>
+                              </div>
+                              
+                              {fixedRestDays ? (
+                                <div className="flex gap-2 flex-wrap">
+                                  {DAYS.map((d, i) => (
+                                    <button
+                                      type="button"
+                                      key={d}
+                                      onClick={() => toggleRestDay(i)}
+                                      className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                        restDays.includes(i)
+                                          ? 'bg-emerald-500 text-white'
+                                          : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                                      }`}
+                                    >
+                                      {d}
+                                    </button>
+                                  ))}
+                                </div>
+                              ) : (
+                                <p className="text-xs text-gray-400 bg-gray-50 p-3 rounded-xl border border-gray-100 leading-relaxed">
+                                  Your rest days are not fixed. You can mark any day as a <strong>Rest Day</strong> manually by clicking the day in your dashboard calendar.
+                                </p>
+                              )}
                             </div>
                           </Field>
                           <Field label="Public Holidays" hint="Dates marked as holidays (holiday pay applies)">
@@ -314,6 +356,49 @@ function SettingsPage() {
                           </Field>
                           <Field label="OT Threshold (minutes)" hint="How many minutes past end time before OT is counted">
                             <input type="number" min={0} className={inputCls} value={otThresholdMinutes} onChange={(e) => setOtThresholdMinutes(e.target.value)} />
+                          </Field>
+                          <Field label="Payroll Schedule" hint="Customize your cutoff and payment dates">
+                            <div className="space-y-4">
+                              <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block mb-1">1st Cutoff (Day)</label>
+                                  <select className={inputCls} value={cutoff1} onChange={(e) => setCutoff1(e.target.value)}>
+                                    {Array.from({ length: 31 }, (_, i) => i + 1).map(d => (
+                                      <option key={d} value={d}>{d}</option>
+                                    ))}
+                                  </select>
+                                </div>
+                                <div>
+                                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block mb-1">1st Payday (Day)</label>
+                                  <select className={inputCls} value={payday1} onChange={(e) => setPayday1(e.target.value)}>
+                                    {Array.from({ length: 31 }, (_, i) => i + 1).map(d => (
+                                      <option key={d} value={d}>{d}</option>
+                                    ))}
+                                    <option value="0">End of the Month</option>
+                                  </select>
+                                </div>
+                              </div>
+                              <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block mb-1">2nd Cutoff (Day)</label>
+                                  <select className={inputCls} value={cutoff2} onChange={(e) => setCutoff2(e.target.value)}>
+                                    <option value="0">End of the Month</option>
+                                    {Array.from({ length: 31 }, (_, i) => i + 1).map(d => (
+                                      <option key={d} value={d}>{d}</option>
+                                    ))}
+                                  </select>
+                                </div>
+                                <div>
+                                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block mb-1">2nd Payday (Day)</label>
+                                  <select className={inputCls} value={payday2} onChange={(e) => setPayday2(e.target.value)}>
+                                    {Array.from({ length: 31 }, (_, i) => i + 1).map(d => (
+                                      <option key={d} value={d}>{d}</option>
+                                    ))}
+                                    <option value="0">End of the Month</option>
+                                  </select>
+                                </div>
+                              </div>
+                            </div>
                           </Field>
                         </>
                       )}

@@ -10,6 +10,7 @@ import {
 import { auth } from '@/lib/firebase'
 import { useApp } from '@/context/AppContext'
 import { Clock, Eye, EyeOff, ArrowRight, CheckCircle } from 'lucide-react'
+import { toast } from 'sonner'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -32,9 +33,11 @@ export default function LoginPage() {
     setLoading(true)
     try {
       await signInWithEmailAndPassword(auth, email, password)
+      toast.success('Login successful! Welcome back.')
       router.replace('/')
     } catch {
       setError('Invalid email or password.')
+      toast.error('Login failed. Please check your credentials.')
     } finally {
       setLoading(false)
     }
@@ -46,12 +49,20 @@ export default function LoginPage() {
     setLoading(true)
     try {
       await createUserWithEmailAndPassword(auth, email, password)
+      toast.success('Account created successfully!')
       router.replace('/onboarding')
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : ''
-      if (msg.includes('email-already-in-use')) setError('Email already in use.')
-      else if (msg.includes('weak-password')) setError('Password must be at least 6 characters.')
-      else setError('Registration failed. Try again.')
+      if (msg.includes('email-already-in-use')) {
+        setError('Email already in use.')
+        toast.error('Email already in use.')
+      } else if (msg.includes('weak-password')) {
+        setError('Password must be at least 6 characters.')
+        toast.error('Password is too weak.')
+      } else {
+        setError('Registration failed. Try again.')
+        toast.error('Registration failed.')
+      }
     } finally {
       setLoading(false)
     }
@@ -62,9 +73,11 @@ export default function LoginPage() {
     setLoading(true)
     try {
       await signInWithPopup(auth, new GoogleAuthProvider())
+      toast.success('Signed in with Google!')
       router.replace('/')
     } catch {
       setError('Google sign-in failed.')
+      toast.error('Google sign-in failed.')
     } finally {
       setLoading(false)
     }

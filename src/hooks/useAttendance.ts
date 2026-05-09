@@ -9,13 +9,26 @@ export function useAttendance(uid: string | null, settings: UserSettings | null)
   const [records, setRecords] = useState<AttendanceRecord[]>([])
   const [loading, setLoading] = useState(true)
 
+  const [prevUid, setPrevUid] = useState<string | null>(uid)
+  const [prevSettings, setPrevSettings] = useState<UserSettings | null>(settings)
+
+  if (uid !== prevUid || settings !== prevSettings) {
+    setPrevUid(uid)
+    setPrevSettings(settings)
+    if (!uid || !settings) setLoading(false)
+    else setLoading(true)
+  }
+
   useEffect(() => {
-    if (!uid || !settings) { setLoading(false); return }
+    if (!uid || !settings) return
     getAllRecords(uid).then((raw) => {
       // Recompute every record with current settings so stored stale values are corrected
       const recomputed = raw.map((r) => {
-        if (!r.timeIn) return r
         const holiday = isHoliday(r.date, settings)
+        if (!r.timeIn) {
+          const status = r.isRestDay ? 'rest-day' : (holiday ? 'holiday' : 'absent')
+          return { ...r, status, isHoliday: holiday }
+        }
         const computed = computeRecord(r.timeIn, r.timeOut ?? null, settings, holiday)
         return { ...r, isHoliday: holiday, ...computed }
       })
@@ -34,7 +47,7 @@ export function useAttendance(uid: string | null, settings: UserSettings | null)
     const computed = computeRecord(time, null, settings, holiday)
     const record: AttendanceRecord = {
       id: today, date: today, timeIn: time, timeOut: null,
-      isHoliday: holiday, notes: '', createdAt: new Date().toISOString(), ...computed,
+      isHoliday: holiday, isRestDay: false, notes: '', createdAt: new Date().toISOString(), ...computed,
     }
     await saveRecord(uid, record)
     setRecords((prev) => [record, ...prev.filter((r) => r.id !== today)])
@@ -57,18 +70,22 @@ export function useAttendance(uid: string | null, settings: UserSettings | null)
   }
 
   /** Save or overwrite a record for any past date */
-  async function saveRecordForDate(date: string, timeInVal: string, timeOutVal: string | null, notes: string) {
+  async function saveRecordForDate(date: string, timeInVal: string | null, timeOutVal: string | null, notes: string, isRestDayVal: boolean = false) {
     if (!uid || !settings) return
     const holiday = isHoliday(date, settings)
-    const computed = computeRecord(timeInVal, timeOutVal, settings, holiday)
+    const computed = timeInVal ? computeRecord(timeInVal, timeOutVal, settings, holiday) : {
+      isOT: false, lateMinutes: 0, otHours: 0, hoursWorked: 0, lateDeduction: 0, dailyEarnings: 0
+    }
     const existing = records.find((r) => r.id === date)
     const record: AttendanceRecord = {
-      id: date, date, timeIn: timeInVal, timeOut: timeOutVal,
-      isHoliday: holiday, notes,
+      id: date, date, timeIn: timeInVal || '', timeOut: timeOutVal,
+      isHoliday: holiday, isRestDay: isRestDayVal, notes,
+      status: timeInVal ? (computed as any).status : (isRestDayVal ? 'rest-day' : (holiday ? 'holiday' : 'absent')),
       createdAt: existing?.createdAt ?? new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       ...computed,
-    }
+    } as AttendanceRecord
+    
     await saveRecord(uid, record)
     setRecords((prev) => [record, ...prev.filter((r) => r.id !== date)])
   }

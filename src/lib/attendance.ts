@@ -1,4 +1,4 @@
-import { format, parseISO, isWeekend, getDaysInMonth, startOfMonth } from 'date-fns'
+import { format, parseISO, getDaysInMonth } from 'date-fns'
 import { UserSettings } from '@/types'
 
 export function getTodayString(): string {
@@ -10,23 +10,30 @@ export function getCurrentTime(): string {
 }
 
 export function formatTime(time: string): string {
+  if (!time) return '—'
   const [h, m] = time.split(':').map(Number)
   const ampm = h >= 12 ? 'PM' : 'AM'
   const hour = h % 12 || 12
   return `${hour}:${m.toString().padStart(2, '0')} ${ampm}`
 }
 
-export function formatCurrency(amount: number, currency: string): string {
+export function formatCurrency(amount: number, currency: string = '₱'): string {
   return `${currency}${amount.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
+export function maskCurrency(formatted: string): string {
+  // Matches digits but preserves everything else like ₱ , .
+  return formatted.replace(/\d/g, '-')
+}
+
 export function isRestDay(date: string, settings: UserSettings): boolean {
+  if (!settings.fixedRestDays) return false
   const d = parseISO(date)
-  return settings.restDays.includes(d.getDay())
+  return settings.restDays?.includes(d.getDay()) || false
 }
 
 export function isHoliday(date: string, settings: UserSettings): boolean {
-  return settings.holidays.includes(date)
+  return settings.holidays?.includes(date) || false
 }
 
 export function getWorkingDaysInMonth(year: number, month: number, settings: UserSettings): string[] {
