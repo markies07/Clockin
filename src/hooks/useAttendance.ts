@@ -26,7 +26,7 @@ export function useAttendance(uid: string | null, settings: UserSettings | null)
       const recomputed = raw.map((r) => {
         const holiday = isHoliday(r.date, settings)
         if (!r.timeIn) {
-          const status = r.isRestDay ? 'rest-day' : (holiday ? 'holiday' : 'absent')
+          const status: AttendanceRecord['status'] = r.isRestDay ? 'rest-day' : (holiday ? 'holiday' : 'absent')
           return { ...r, status, isHoliday: holiday }
         }
         const computed = computeRecord(r.timeIn, r.timeOut ?? null, settings, holiday)
