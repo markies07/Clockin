@@ -3,19 +3,20 @@ import { useState } from 'react'
 import AuthGuard from '@/components/AuthGuard'
 import Sidebar from '@/components/layout/Sidebar'
 import TopBar from '@/components/layout/TopBar'
-import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { useApp } from '@/context/AppContext'
 import { useAttendance } from '@/hooks/useAttendance'
 import { formatCurrency, getWorkingDaysInMonth } from '@/lib/attendance'
 import { computeMonthlyEarnings } from '@/lib/salary'
-import { format, parseISO, startOfWeek, endOfWeek, eachDayOfInterval, subWeeks } from 'date-fns'
-import { ChevronLeft, ChevronRight, Flame } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { getPayPeriods, earningsForPeriod } from '@/lib/payroll'
+import { format, startOfWeek, endOfWeek, eachDayOfInterval, subWeeks } from 'date-fns'
+import { ChevronLeft, ChevronRight, Flame, Calendar, Clock, AlertCircle, TrendingUp, Info, CalendarClock } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
+import ReportsSkeleton from '@/components/skeletons/ReportsSkeleton'
+import BottomNav from '@/components/layout/BottomNav'
 
 function ReportsPage() {
   const { user, settings } = useApp()
-  const { records } = useAttendance(user?.uid ?? null, settings)
+  const { records, loading } = useAttendance(user?.uid ?? null, settings)
   const [currentDate, setCurrentDate] = useState(new Date())
 
   if (!settings) return null
@@ -32,27 +33,37 @@ function ReportsPage() {
   const lateDays = monthRecords.filter((r) => r.status === 'late').length
   const totalOTHours = monthRecords.reduce((sum, r) => sum + (r.otHours || 0), 0)
   const totalLateDeduction = monthRecords.reduce((sum, r) => sum + (r.lateDeduction || 0), 0)
-  const regularHours = (() => {
-    const [sh, sm] = settings.startTime.split(':').map(Number)
-    const [eh, em] = settings.endTime.split(':').map(Number)
-    return ((eh * 60 + em) - (sh * 60 + sm)) / 60
-  })()
+  const [sh, sm] = settings.startTime.split(':').map(Number)
+  const [eh, em] = settings.endTime.split(':').map(Number)
+  const regularHours = ((eh * 60 + em) - (sh * 60 + sm)) / 60
   const hourly = settings.rateType === 'daily' ? settings.rateAmount / regularHours : settings.rateAmount
   const totalOTPay = totalOTHours * hourly * settings.otMultiplier
   const basePay = computeMonthlyEarnings(monthRecords) - totalOTPay + totalLateDeduction
   const totalSalary = computeMonthlyEarnings(monthRecords)
 
-  // Streak
+  // Payroll periods
+  const { current: currentPeriod, next: nextPeriod } = getPayPeriods(currentDate)
+  const period1Earnings = earningsForPeriod(records, {
+    label: `${format(currentDate, 'MMM')} 1–15`,
+    cutoffStart: format(new Date(currentDate.getFullYear(), currentDate.getMonth(), 1), 'yyyy-MM-dd'),
+    cutoffEnd:   format(new Date(currentDate.getFullYear(), currentDate.getMonth(), 15), 'yyyy-MM-dd'),
+    payDate: '', payDateLabel: format(new Date(currentDate.getFullYear(), currentDate.getMonth(), 15), 'MMM 15'),
+  })
+  const period2Earnings = earningsForPeriod(records, {
+    label: `${format(currentDate, 'MMM')} 16–EOM`,
+    cutoffStart: format(new Date(currentDate.getFullYear(), currentDate.getMonth(), 16), 'yyyy-MM-dd'),
+    cutoffEnd:   format(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0), 'yyyy-MM-dd'),
+    payDate: '', payDateLabel: '',
+  })
+
   const sortedRecords = [...records].sort((a, b) => b.date.localeCompare(a.date))
   let streak = 0
-  const todayStr = today
   for (let i = 0; i < sortedRecords.length; i++) {
     const r = sortedRecords[i]
-    if (r.timeIn) { streak++; } else break
-    if (i === 0 && r.date !== todayStr) break
+    if (r.timeIn) { streak++ } else break
+    if (i === 0 && r.date !== today) break
   }
 
-  // Weekly bar chart — last 4 weeks
   const weekData = Array.from({ length: 4 }, (_, i) => {
     const weekStart = startOfWeek(subWeeks(new Date(), i), { weekStartsOn: 1 })
     const weekEnd = endOfWeek(subWeeks(new Date(), i), { weekStartsOn: 1 })
@@ -61,117 +72,137 @@ function ReportsPage() {
       const rec = records.find((r) => r.date === format(d, 'yyyy-MM-dd'))
       return sum + (rec?.hoursWorked || 0)
     }, 0)
-    return { week: `Week ${4 - i}`, hours: Math.round(totalHours * 10) / 10 }
+    return { week: `Wk ${4 - i}`, hours: Math.round(totalHours * 10) / 10 }
   }).reverse()
 
   const summaryStats = [
-    { label: 'Days Worked', value: presentRecords.length, color: 'text-blue-600' },
-    { label: 'Absences', value: absences, color: 'text-red-500' },
-    { label: 'Late Days', value: lateDays, color: 'text-yellow-600' },
-    { label: 'OT Hours', value: `${totalOTHours.toFixed(1)}h`, color: 'text-orange-500' },
+    { label: 'Days Worked',  value: presentRecords.length,         icon: Calendar,      badgeCls: 'bg-blue-500',   textCls: 'text-blue-600' },
+    { label: 'Absences',     value: absences,                       icon: AlertCircle,   badgeCls: 'bg-amber-400',  textCls: 'text-amber-600' },
+    { label: 'Late Days',    value: lateDays,                       icon: Clock,         badgeCls: 'bg-red-400',    textCls: 'text-red-500' },
+    { label: 'OT Hours',     value: `${totalOTHours.toFixed(1)}h`,  icon: TrendingUp,    badgeCls: 'bg-orange-400', textCls: 'text-orange-500' },
   ]
 
   return (
-    <div className="flex min-h-screen bg-gray-50 dark:bg-gray-950">
+    <div className="flex h-screen overflow-hidden bg-gray-50">
       <Sidebar />
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
         <TopBar title="Reports" />
-        <main className="flex-1 overflow-y-auto p-6 space-y-6">
-          {/* Month selector */}
-          <div className="flex items-center gap-3">
-            <Button variant="outline" size="icon" className="w-8 h-8"
-              onClick={() => setCurrentDate((d) => new Date(d.getFullYear(), d.getMonth() - 1))}>
-              <ChevronLeft className="w-4 h-4" />
-            </Button>
-            <span className="font-semibold text-gray-900 dark:text-white w-36 text-center">
-              {format(currentDate, 'MMMM yyyy')}
-            </span>
-            <Button variant="outline" size="icon" className="w-8 h-8"
-              onClick={() => setCurrentDate((d) => new Date(d.getFullYear(), d.getMonth() + 1))}>
-              <ChevronRight className="w-4 h-4" />
-            </Button>
+        {loading ? <ReportsSkeleton /> : <main className="flex-1 overflow-y-auto p-4 lg:p-6 space-y-4 lg:space-y-5 pb-24 lg:pb-6">
+
+          {/* Page header + month nav */}
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            <div>
+              <h2 className="text-xl font-extrabold text-gray-900">Monthly Reports</h2>
+              <p className="text-sm text-gray-400 mt-0.5">Detailed breakdown of your attendance & earnings</p>
+            </div>
+            <div className="flex items-center gap-1 bg-white border border-gray-200 rounded-xl px-1 py-1">
+              <button
+                onClick={() => setCurrentDate((d) => new Date(d.getFullYear(), d.getMonth() - 1))}
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-500 hover:bg-gray-50 hover:text-gray-800 transition-colors cursor-pointer"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <span className="font-bold text-gray-800 text-sm w-32 text-center">{format(currentDate, 'MMMM yyyy')}</span>
+              <button
+                onClick={() => setCurrentDate((d) => new Date(d.getFullYear(), d.getMonth() + 1))}
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-500 hover:bg-gray-50 hover:text-gray-800 transition-colors cursor-pointer"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
           </div>
 
-          {/* Streak */}
-          <Card className="border-0 shadow-sm bg-gradient-to-r from-green-500 to-emerald-600 text-white">
-            <CardContent className="p-5 flex items-center gap-4">
-              <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
-                <Flame className="w-6 h-6 text-white" />
-              </div>
-              <div>
-                <p className="text-sm text-green-100">Current Streak</p>
-                <p className="text-3xl font-bold">{streak} day{streak !== 1 ? 's' : ''}</p>
-                <p className="text-xs text-green-100 mt-0.5">Consecutive days worked</p>
-              </div>
-            </CardContent>
-          </Card>
+          {/* Streak banner */}
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex items-center gap-4">
+            <div className="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center border border-emerald-100 shrink-0">
+              <Flame className="w-6 h-6 text-emerald-500" />
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Current Streak</p>
+              <p className="text-2xl font-extrabold text-gray-900 leading-tight">
+                {streak} <span className="text-base font-semibold text-gray-400">day{streak !== 1 ? 's' : ''}</span>
+              </p>
+            </div>
+            <div className="ml-auto hidden sm:block text-right">
+              <span className={`text-xs font-bold px-3 py-1.5 rounded-full ${streak > 0 ? 'bg-emerald-500 text-white' : 'bg-gray-100 text-gray-500'}`}>
+                {streak > 0 ? `🔥 Keep it up!` : 'Start your streak'}
+              </span>
+            </div>
+          </div>
 
           {/* Stats grid */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            {summaryStats.map(({ label, value, color }) => (
-              <Card key={label} className="border-0 shadow-sm">
-                <CardContent className="p-5">
-                  <p className="text-xs text-gray-400 dark:text-gray-500 font-medium">{label}</p>
-                  <p className={`text-2xl font-bold mt-1 ${color}`}>{value}</p>
-                </CardContent>
-              </Card>
+            {summaryStats.map(({ label, value, icon: Icon, badgeCls, textCls }) => (
+              <div key={label} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+                <div className="flex items-start justify-between mb-3">
+                  <p className="text-sm font-semibold text-gray-500">{label}</p>
+                  <span className={`text-[10px] font-bold text-white px-2 py-0.5 rounded-full ${badgeCls}`}>
+                    {typeof value === 'number' ? `${value}` : value}
+                  </span>
+                </div>
+                <p className={`text-3xl font-extrabold ${textCls}`}>{value}</p>
+              </div>
             ))}
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Bottom two panels */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+
             {/* Salary breakdown */}
-            <Card className="border-0 shadow-sm">
-              <CardHeader className="pb-3">
-                <p className="font-semibold text-gray-900 dark:text-white">Salary Breakdown</p>
-                <p className="text-xs text-gray-400">{format(currentDate, 'MMMM yyyy')}</p>
-              </CardHeader>
-              <CardContent className="space-y-3 text-sm">
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+              <div className="flex items-center gap-2 mb-5 pb-4 border-b border-gray-50">
+                <p className="font-bold text-gray-800 text-sm">Salary Breakdown</p>
+                <Info className="w-3.5 h-3.5 text-gray-300" />
+                <span className="ml-auto text-xs text-gray-400">{format(currentDate, 'MMMM yyyy')}</span>
+              </div>
+              <div className="space-y-1">
                 {[
-                  { label: 'Base Pay', value: formatCurrency(Math.max(0, basePay), settings.currency), color: '' },
-                  { label: 'OT Pay', value: `+${formatCurrency(totalOTPay, settings.currency)}`, color: 'text-orange-500' },
-                  { label: 'Late Deductions', value: `-${formatCurrency(totalLateDeduction, settings.currency)}`, color: 'text-red-500' },
-                ].map(({ label, value, color }) => (
-                  <div key={label} className="flex justify-between py-2 border-b border-gray-50 dark:border-gray-800">
-                    <span className="text-gray-500 dark:text-gray-400">{label}</span>
-                    <span className={`font-medium ${color}`}>{value}</span>
+                  { label: 'Base Pay',         value: formatCurrency(Math.max(0, basePay), settings.currency), cls: 'text-gray-900' },
+                  { label: 'Overtime Pay',      value: `+${formatCurrency(totalOTPay, settings.currency)}`,     cls: 'text-orange-500' },
+                  { label: 'Late Deductions',   value: `-${formatCurrency(totalLateDeduction, settings.currency)}`, cls: 'text-red-500' },
+                ].map(({ label, value, cls }) => (
+                  <div key={label} className="flex justify-between items-center py-3 border-b border-gray-50">
+                    <span className="text-sm text-gray-500">{label}</span>
+                    <span className={`text-sm font-bold ${cls}`}>{value}</span>
                   </div>
                 ))}
-                <div className="flex justify-between pt-2">
-                  <span className="font-semibold text-gray-900 dark:text-white">Total Expected</span>
-                  <span className="font-bold text-green-600 text-base">{formatCurrency(totalSalary, settings.currency)}</span>
+                <div className="flex justify-between items-center pt-3">
+                  <span className="font-bold text-gray-900 text-sm">Total Expected</span>
+                  <span className="font-extrabold text-emerald-600 text-lg">{formatCurrency(totalSalary, settings.currency)}</span>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
 
             {/* Weekly chart */}
-            <Card className="border-0 shadow-sm">
-              <CardHeader className="pb-3">
-                <p className="font-semibold text-gray-900 dark:text-white">Weekly Hours</p>
-                <p className="text-xs text-gray-400">Last 4 weeks</p>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={180}>
-                  <BarChart data={weekData} barSize={36}>
-                    <XAxis dataKey="week" tick={{ fontSize: 12, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fontSize: 12, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
-                    <Tooltip
-                      contentStyle={{ background: '#1f2937', border: 'none', borderRadius: 8, fontSize: 12 }}
-                      labelStyle={{ color: '#f9fafb' }}
-                      itemStyle={{ color: '#34d399' }}
-                      formatter={(v) => [`${v}h`, 'Hours']}
-                    />
-                    <Bar dataKey="hours" radius={[6, 6, 0, 0]}>
-                      {weekData.map((_, i) => (
-                        <Cell key={i} fill={i === weekData.length - 1 ? '#22c55e' : '#d1fae5'} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+              <div className="flex items-center gap-2 mb-5 pb-4 border-b border-gray-50">
+                <p className="font-bold text-gray-800 text-sm">Weekly Hours</p>
+                <Info className="w-3.5 h-3.5 text-gray-300" />
+                <span className="ml-auto text-xs text-gray-400">Last 4 weeks</span>
+              </div>
+              <ResponsiveContainer width="100%" height={180}>
+                <BarChart data={weekData} barSize={44}>
+                  <XAxis dataKey="week" tick={{ fontSize: 11, fill: '#9ca3af', fontWeight: 700 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
+                  <Tooltip
+                    contentStyle={{ background: '#fff', border: '1px solid #f1f5f9', borderRadius: 12, fontSize: 12, boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }}
+                    labelStyle={{ color: '#374151', fontWeight: 700 }}
+                    itemStyle={{ color: '#10b981', fontWeight: 600 }}
+                    formatter={(v) => [`${v}h`, 'Hours Worked']}
+                    cursor={{ fill: '#f8fafc', radius: 8 }}
+                  />
+                  <Bar dataKey="hours" radius={[8, 8, 4, 4]}>
+                    {weekData.map((_, i) => (
+                      <Cell key={i} fill={i === weekData.length - 1 ? '#10b981' : '#d1fae5'} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
           </div>
-        </main>
+        </main>}
       </div>
+      <BottomNav />
     </div>
   )
 }

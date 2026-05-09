@@ -3,26 +3,47 @@ import { useState, useEffect } from 'react'
 import AuthGuard from '@/components/AuthGuard'
 import Sidebar from '@/components/layout/Sidebar'
 import TopBar from '@/components/layout/TopBar'
-import { Card, CardContent, CardHeader } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
-import { Separator } from '@/components/ui/separator'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import BottomNav from '@/components/layout/BottomNav'
 import { useApp } from '@/context/AppContext'
 import { useAttendance } from '@/hooks/useAttendance'
 import { getAllRecords, deleteRecord } from '@/lib/firestore'
-import { formatCurrency } from '@/lib/attendance'
 import { toast } from 'sonner'
-import { Trash2, Download } from 'lucide-react'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Trash2, Download, User, Clock, Wallet, Database, Save, ChevronRight } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
+const inputCls = "w-full px-3.5 py-2.5 bg-white border border-gray-200 rounded-lg text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-emerald-400/30 focus:border-emerald-400 transition-all placeholder:text-gray-400"
+
+type TabId = 'profile' | 'schedule' | 'pay' | 'data'
+
+const TABS: { id: TabId; label: string; icon: React.ElementType; description: string }[] = [
+  { id: 'profile',  label: 'Profile',        icon: User,     description: 'Your name and account info' },
+  { id: 'schedule', label: 'Work Schedule',  icon: Clock,    description: 'Hours, rest days & holidays' },
+  { id: 'pay',      label: 'Pay & Rates',    icon: Wallet,   description: 'Salary rate and OT settings' },
+  { id: 'data',     label: 'Data',           icon: Database, description: 'Export or delete your data' },
+]
+
+function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
+  return (
+    <div className="py-5 border-b border-gray-100 last:border-0">
+      <div className="flex items-start justify-between gap-6">
+        <div className="w-56 shrink-0 pt-0.5">
+          <p className="text-sm font-semibold text-gray-800">{label}</p>
+          {hint && <p className="text-xs text-gray-400 mt-0.5">{hint}</p>}
+        </div>
+        <div className="flex-1 max-w-md">{children}</div>
+      </div>
+    </div>
+  )
+}
+
 function SettingsPage() {
   const { user, settings, updateSettings } = useApp()
   const { records } = useAttendance(user?.uid ?? null, settings)
+  const [activeTab, setActiveTab] = useState<TabId>('profile')
 
   const [name, setName] = useState('')
   const [startTime, setStartTime] = useState('08:00')
@@ -33,7 +54,6 @@ function SettingsPage() {
   const [holidayMultiplier, setHolidayMultiplier] = useState('2')
   const [otThresholdMinutes, setOtThresholdMinutes] = useState('30')
   const [restDays, setRestDays] = useState<number[]>([])
-  const [darkMode, setDarkMode] = useState(false)
   const [holidayInput, setHolidayInput] = useState('')
   const [showResetDialog, setShowResetDialog] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -50,12 +70,7 @@ function SettingsPage() {
     setHolidayMultiplier(settings.holidayMultiplier.toString())
     setOtThresholdMinutes(settings.otThresholdMinutes.toString())
     setRestDays(settings.restDays)
-    setDarkMode(settings.darkMode)
   }, [settings])
-
-  useEffect(() => {
-    document.documentElement.classList.toggle('dark', darkMode)
-  }, [darkMode])
 
   function toggleRestDay(day: number) {
     setRestDays((prev) => prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day])
@@ -72,31 +87,21 @@ function SettingsPage() {
   function removeHoliday(date: string) {
     if (!settings) return
     updateSettings({ holidays: settings.holidays.filter((h) => h !== date) })
-    toast.success('Holiday removed')
   }
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault()
     setSaving(true)
     await updateSettings({
-      name,
-      startTime,
-      endTime,
-      rateType,
+      name, startTime, endTime, rateType,
       rateAmount: parseFloat(rateAmount) || 0,
       otMultiplier: parseFloat(otMultiplier) || 1.25,
       holidayMultiplier: parseFloat(holidayMultiplier) || 2,
       otThresholdMinutes: parseInt(otThresholdMinutes) || 30,
       restDays,
-      darkMode,
     })
     setSaving(false)
-    toast.success('Settings saved')
-  }
-
-  async function handleToggleDark(val: boolean) {
-    setDarkMode(val)
-    await updateSettings({ darkMode: val })
+    toast.success('Settings saved!')
   }
 
   function exportCSV() {
@@ -136,191 +141,263 @@ function SettingsPage() {
 
   if (!settings) return null
 
+  const activeTabInfo = TABS.find((t) => t.id === activeTab)!
+
   return (
-    <div className="flex min-h-screen bg-gray-50 dark:bg-gray-950">
+    <div className="flex h-screen overflow-hidden bg-gray-50">
       <Sidebar />
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
         <TopBar title="Settings" />
-        <main className="flex-1 overflow-y-auto p-6">
-          <form onSubmit={handleSave} className="max-w-2xl space-y-6">
+        <main className="flex-1 overflow-y-auto p-4 lg:p-6 pb-24 lg:pb-6">
+          <div className="max-w-5xl mx-auto space-y-5 lg:space-y-6">
 
-            {/* Personal Info */}
-            <Card className="border-0 shadow-sm">
-              <CardHeader className="pb-3">
-                <p className="font-semibold text-gray-900 dark:text-white">Personal Info</p>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-1.5">
-                  <Label>Full Name</Label>
-                  <Input value={name} onChange={(e) => setName(e.target.value)} />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Email</Label>
-                  <Input value={user?.email ?? ''} disabled className="opacity-60" />
-                </div>
-              </CardContent>
-            </Card>
+            {/* Page header */}
+            <div>
+              <h2 className="text-xl font-extrabold text-gray-900">Settings</h2>
+              <p className="text-sm text-gray-400 mt-0.5">Manage your account, schedule, and preferences</p>
+            </div>
 
-            {/* Work Schedule */}
-            <Card className="border-0 shadow-sm">
-              <CardHeader className="pb-3">
-                <p className="font-semibold text-gray-900 dark:text-white">Work Schedule</p>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <Label>Start Time</Label>
-                    <Input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>End Time</Label>
-                    <Input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} />
-                  </div>
+            <div className="flex flex-col lg:flex-row gap-4 lg:gap-6 items-start">
+              {/* Tab nav — icon grid on mobile, vertical sidebar on desktop */}
+              <nav className="w-full lg:w-52 lg:shrink-0 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                {/* Mobile: 4-column icon grid */}
+                <div className="grid grid-cols-4 lg:hidden">
+                  {TABS.map(({ id, label, icon: Icon }) => (
+                    <button key={id} type="button" onClick={() => setActiveTab(id)}
+                      className={`flex flex-col items-center justify-center py-3 gap-1 cursor-pointer transition-colors border-r border-gray-50 last:border-0 ${
+                        activeTab === id ? 'bg-emerald-50' : 'hover:bg-gray-50'
+                      }`}
+                    >
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${activeTab === id ? 'bg-emerald-100' : 'bg-gray-100'}`}>
+                        <Icon className={`w-4 h-4 ${activeTab === id ? 'text-emerald-600' : 'text-gray-400'}`} />
+                      </div>
+                      <span className={`text-[10px] font-bold leading-tight text-center ${activeTab === id ? 'text-emerald-600' : 'text-gray-400'}`}>
+                        {label === 'Work Schedule' ? 'Schedule' : label === 'Pay & Rates' ? 'Pay' : label}
+                      </span>
+                      {activeTab === id && <span className="w-1 h-1 rounded-full bg-emerald-500" />}
+                    </button>
+                  ))}
                 </div>
-                <div className="space-y-2">
-                  <Label>Rest Days</Label>
-                  <div className="flex gap-2 flex-wrap">
-                    {DAYS.map((d, i) => (
-                      <button type="button" key={d} onClick={() => toggleRestDay(i)}
-                        className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                          restDays.includes(i)
-                            ? 'bg-green-500 text-white'
-                            : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
-                        }`}>
-                        {d}
-                      </button>
-                    ))}
-                  </div>
+                {/* Desktop: vertical list */}
+                <div className="hidden lg:flex lg:flex-col">
+                  {TABS.map(({ id, label, icon: Icon, description }) => (
+                    <button key={id} type="button" onClick={() => setActiveTab(id)}
+                      className={`flex items-center gap-3 px-4 py-3.5 text-left transition-colors border-b border-gray-50 last:border-0 cursor-pointer w-full ${
+                        activeTab === id ? 'bg-emerald-50' : 'hover:bg-gray-50'
+                      }`}
+                    >
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${activeTab === id ? 'bg-emerald-100' : 'bg-gray-100'}`}>
+                        <Icon className={`w-4 h-4 ${activeTab === id ? 'text-emerald-600' : 'text-gray-500'}`} />
+                      </div>
+                      <div className="min-w-0">
+                        <p className={`text-sm font-semibold leading-tight ${activeTab === id ? 'text-emerald-700' : 'text-gray-700'}`}>{label}</p>
+                        <p className="text-[10px] text-gray-400 mt-0.5 leading-tight truncate">{description}</p>
+                      </div>
+                      {activeTab === id && <ChevronRight className="w-3.5 h-3.5 text-emerald-400 ml-auto shrink-0" />}
+                    </button>
+                  ))}
                 </div>
-                <div className="space-y-2">
-                  <Label>Holidays</Label>
-                  <div className="flex gap-2">
-                    <Input type="date" value={holidayInput} onChange={(e) => setHolidayInput(e.target.value)} className="flex-1" />
-                    <Button type="button" variant="outline" onClick={addHoliday}>Add</Button>
-                  </div>
-                  {settings.holidays.length > 0 && (
-                    <div className="flex flex-wrap gap-2 mt-2">
-                      {settings.holidays.map((h) => (
-                        <span key={h} className="flex items-center gap-1.5 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 text-xs px-2.5 py-1 rounded-full">
-                          {h}
-                          <button type="button" onClick={() => removeHoliday(h)} className="hover:text-red-500">×</button>
-                        </span>
-                      ))}
+              </nav>
+
+              {/* Right content panel */}
+              <div className="flex-1 min-w-0 w-full">
+                <form onSubmit={handleSave}>
+                  <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
+                    {/* Panel header */}
+                    <div className="px-6 py-5 border-b border-gray-100">
+                      <p className="font-bold text-gray-900">{activeTabInfo.label}</p>
+                      <p className="text-xs text-gray-400 mt-0.5">{activeTabInfo.description}</p>
                     </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
 
-            {/* Pay Config */}
-            <Card className="border-0 shadow-sm">
-              <CardHeader className="pb-3">
-                <p className="font-semibold text-gray-900 dark:text-white">Pay Configuration</p>
-                <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">Late deduction is fixed at ₱1/minute</p>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label>Rate Type</Label>
-                  <div className="grid grid-cols-2 gap-3">
-                    {(['daily', 'hourly'] as const).map((t) => (
-                      <button type="button" key={t} onClick={() => setRateType(t)}
-                        className={`py-2.5 rounded-lg text-sm font-medium border transition-colors ${
-                          rateType === t
-                            ? 'border-green-500 bg-green-50 dark:bg-green-950 text-green-700 dark:text-green-400'
-                            : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400'
-                        }`}>
-                        {t === 'daily' ? 'Daily Rate' : 'Hourly Rate'}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div className="space-y-1.5">
-                  <Label>{rateType === 'daily' ? 'Daily Rate (₱)' : 'Hourly Rate (₱)'}</Label>
-                  <Input type="number" min={0} value={rateAmount} onChange={(e) => setRateAmount(e.target.value)} />
-                </div>
-                <div className="grid grid-cols-3 gap-3">
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">OT Multiplier</Label>
-                    <Input type="number" step="0.25" value={otMultiplier} onChange={(e) => setOtMultiplier(e.target.value)} />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Holiday Multiplier</Label>
-                    <Input type="number" step="0.25" value={holidayMultiplier} onChange={(e) => setHolidayMultiplier(e.target.value)} />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">OT Threshold (min)</Label>
-                    <Input type="number" value={otThresholdMinutes} onChange={(e) => setOtThresholdMinutes(e.target.value)} />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+                    {/* Panel content */}
+                    <div className="px-6">
 
-            {/* Appearance */}
-            <Card className="border-0 shadow-sm">
-              <CardHeader className="pb-3">
-                <p className="font-semibold text-gray-900 dark:text-white">Appearance</p>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-900 dark:text-white">Dark Mode</p>
-                    <p className="text-xs text-gray-400 dark:text-gray-500">Switch between light and dark theme</p>
-                  </div>
-                  <Switch checked={darkMode} onCheckedChange={handleToggleDark} />
-                </div>
-              </CardContent>
-            </Card>
+                      {/* ── Profile ── */}
+                      {activeTab === 'profile' && (
+                        <>
+                          <Field label="Full Name" hint="Your display name across the app">
+                            <input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} />
+                          </Field>
+                          <Field label="Email Address" hint="Linked to your account login">
+                            <input className={`${inputCls} opacity-50 cursor-not-allowed`} value={user?.email ?? ''} disabled />
+                          </Field>
+                        </>
+                      )}
 
-            <Button type="submit" className="bg-green-500 hover:bg-green-600 w-full" disabled={saving}>
-              {saving ? 'Saving...' : 'Save Changes'}
-            </Button>
-          </form>
+                      {/* ── Schedule ── */}
+                      {activeTab === 'schedule' && (
+                        <>
+                          <Field label="Work Hours" hint="Your official start and end time">
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block mb-1">Start</label>
+                                <input type="time" className={`${inputCls} cursor-pointer`} value={startTime} onChange={(e) => setStartTime(e.target.value)} />
+                              </div>
+                              <div>
+                                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block mb-1">End</label>
+                                <input type="time" className={`${inputCls} cursor-pointer`} value={endTime} onChange={(e) => setEndTime(e.target.value)} />
+                              </div>
+                            </div>
+                          </Field>
+                          <Field label="Rest Days" hint="Days off that won't count as absent">
+                            <div className="flex gap-2 flex-wrap">
+                              {DAYS.map((d, i) => (
+                                <button
+                                  type="button"
+                                  key={d}
+                                  onClick={() => toggleRestDay(i)}
+                                  className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                    restDays.includes(i)
+                                      ? 'bg-emerald-500 text-white'
+                                      : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                                  }`}
+                                >
+                                  {d}
+                                </button>
+                              ))}
+                            </div>
+                          </Field>
+                          <Field label="Public Holidays" hint="Dates marked as holidays (holiday pay applies)">
+                            <div className="flex gap-2">
+                              <input type="date" className={`${inputCls} flex-1 cursor-pointer`} value={holidayInput} onChange={(e) => setHolidayInput(e.target.value)} />
+                              <button
+                                type="button"
+                                onClick={addHoliday}
+                                className="px-4 py-2.5 bg-gray-900 hover:bg-gray-800 text-white text-sm font-bold rounded-lg transition-colors cursor-pointer"
+                              >
+                                Add
+                              </button>
+                            </div>
+                            {settings.holidays.length > 0 && (
+                              <div className="flex flex-wrap gap-2 mt-3">
+                                {settings.holidays.map((h) => (
+                                  <span key={h} className="flex items-center gap-1.5 bg-purple-50 text-purple-600 text-xs px-3 py-1.5 rounded-full font-semibold border border-purple-100">
+                                    {h}
+                                    <button type="button" onClick={() => removeHoliday(h)} className="hover:text-red-500 transition-colors cursor-pointer font-bold">×</button>
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </Field>
+                        </>
+                      )}
 
-          {/* Data Management */}
-          <div className="max-w-2xl mt-6">
-            <Card className="border-0 shadow-sm">
-              <CardHeader className="pb-3">
-                <p className="font-semibold text-gray-900 dark:text-white">Data Management</p>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex gap-3 flex-wrap">
-                  <Button variant="outline" className="gap-2" onClick={exportCSV}>
-                    <Download className="w-4 h-4" /> Export CSV
-                  </Button>
-                  <Button variant="outline" className="gap-2" onClick={exportJSON}>
-                    <Download className="w-4 h-4" /> Export JSON Backup
-                  </Button>
-                </div>
-                <Separator />
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-red-600 dark:text-red-400">Delete All Records</p>
-                    <p className="text-xs text-gray-400 dark:text-gray-500">Permanently delete all attendance data</p>
+                      {/* ── Pay ── */}
+                      {activeTab === 'pay' && (
+                        <>
+                          <Field label="Rate Type" hint="How your salary is calculated">
+                            <div className="flex gap-2">
+                              {(['daily', 'hourly'] as const).map((t) => (
+                                <button
+                                  type="button"
+                                  key={t}
+                                  onClick={() => setRateType(t)}
+                                  className={`flex-1 py-2 rounded-lg text-sm font-bold border transition-all cursor-pointer ${
+                                    rateType === t
+                                      ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                                      : 'border-gray-200 text-gray-500 hover:border-gray-300'
+                                  }`}
+                                >
+                                  {t === 'daily' ? 'Daily Rate' : 'Hourly Rate'}
+                                </button>
+                              ))}
+                            </div>
+                          </Field>
+                          <Field label={rateType === 'daily' ? 'Daily Rate (₱)' : 'Hourly Rate (₱)'} hint="Base pay per day or per hour">
+                            <input type="number" min={0} className={inputCls} value={rateAmount} onChange={(e) => setRateAmount(e.target.value)} />
+                          </Field>
+                          <Field label="OT Multiplier" hint="Extra pay rate for overtime hours (1.0 = same rate, 1.25 = 25% extra)">
+                            <input type="number" step="0.25" min="1" className={inputCls} value={otMultiplier} onChange={(e) => setOtMultiplier(e.target.value)} />
+                          </Field>
+                          <Field label="Holiday Multiplier" hint="Pay rate on holidays (2.0 = double pay)">
+                            <input type="number" step="0.25" min="1" className={inputCls} value={holidayMultiplier} onChange={(e) => setHolidayMultiplier(e.target.value)} />
+                          </Field>
+                          <Field label="OT Threshold (minutes)" hint="How many minutes past end time before OT is counted">
+                            <input type="number" min={0} className={inputCls} value={otThresholdMinutes} onChange={(e) => setOtThresholdMinutes(e.target.value)} />
+                          </Field>
+                        </>
+                      )}
+
+                      {/* ── Data ── */}
+                      {activeTab === 'data' && (
+                        <>
+                          <Field label="Export CSV" hint="Download all attendance records as a spreadsheet">
+                            <button
+                              type="button"
+                              onClick={exportCSV}
+                              className="flex items-center gap-2 px-4 py-2.5 bg-gray-50 hover:bg-gray-100 border border-gray-200 text-gray-700 text-sm font-bold rounded-lg transition-colors cursor-pointer"
+                            >
+                              <Download className="w-4 h-4" /> Export CSV
+                            </button>
+                          </Field>
+                          <Field label="JSON Backup" hint="Download a full backup of your settings and records">
+                            <button
+                              type="button"
+                              onClick={exportJSON}
+                              className="flex items-center gap-2 px-4 py-2.5 bg-gray-50 hover:bg-gray-100 border border-gray-200 text-gray-700 text-sm font-bold rounded-lg transition-colors cursor-pointer"
+                            >
+                              <Download className="w-4 h-4" /> Download Backup
+                            </button>
+                          </Field>
+                          <Field label="Delete All Records" hint="Permanently removes all your attendance history">
+                            <button
+                              type="button"
+                              onClick={() => setShowResetDialog(true)}
+                              className="flex items-center gap-2 px-4 py-2.5 bg-red-50 hover:bg-red-100 border border-red-200 text-red-500 text-sm font-bold rounded-lg transition-colors cursor-pointer"
+                            >
+                              <Trash2 className="w-4 h-4" /> Delete All Records
+                            </button>
+                          </Field>
+                        </>
+                      )}
+                    </div>
+
+                    {/* Save footer — only for editable tabs */}
+                    {activeTab !== 'data' && (
+                      <div className="px-6 py-4 border-t border-gray-100 flex justify-end">
+                        <button
+                          type="submit"
+                          disabled={saving}
+                          className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-60 text-white font-bold px-6 py-2.5 rounded-xl transition-colors shadow-sm shadow-emerald-200 cursor-pointer text-sm"
+                        >
+                          {saving
+                            ? <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                            : <><Save className="w-4 h-4" /> Save Changes</>
+                          }
+                        </button>
+                      </div>
+                    )}
                   </div>
-                  <Button variant="outline" className="border-red-200 text-red-600 hover:bg-red-50 dark:border-red-800 dark:text-red-400 gap-2"
-                    onClick={() => setShowResetDialog(true)}>
-                    <Trash2 className="w-4 h-4" /> Delete All
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+                </form>
+              </div>
+            </div>
           </div>
         </main>
       </div>
 
+      <BottomNav />
       <Dialog open={showResetDialog} onOpenChange={setShowResetDialog}>
-        <DialogContent className="max-w-sm">
+        <DialogContent className="max-w-sm rounded-2xl border-0 shadow-2xl">
           <DialogHeader>
-            <DialogTitle>Delete All Records?</DialogTitle>
+            <DialogTitle className="text-gray-900 font-extrabold">Delete All Records?</DialogTitle>
           </DialogHeader>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
+          <p className="text-sm text-gray-500">
             This will permanently delete all your attendance records. This action cannot be undone.
           </p>
           <div className="flex gap-3 mt-2">
-            <Button variant="outline" className="flex-1" onClick={() => setShowResetDialog(false)}>Cancel</Button>
-            <Button className="flex-1 bg-red-500 hover:bg-red-600" onClick={handleReset} disabled={resetting}>
-              {resetting ? 'Deleting...' : 'Delete All'}
-            </Button>
+            <button
+              onClick={() => setShowResetDialog(false)}
+              className="flex-1 py-2.5 border border-gray-200 text-gray-700 font-bold text-sm rounded-xl hover:bg-gray-50 transition-colors cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleReset}
+              disabled={resetting}
+              className="flex-1 py-2.5 bg-red-500 hover:bg-red-600 disabled:opacity-60 text-white font-bold text-sm rounded-xl transition-colors cursor-pointer"
+            >
+              {resetting ? 'Deleting…' : 'Delete All'}
+            </button>
           </div>
         </DialogContent>
       </Dialog>

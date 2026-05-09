@@ -15,13 +15,16 @@ export function computeRecord(
   settings: UserSettings,
   isHoliday: boolean
 ): Omit<AttendanceRecord, 'id' | 'date' | 'timeIn' | 'timeOut' | 'notes' | 'isHoliday' | 'createdAt' | 'updatedAt'> {
+  const LUNCH_MINUTES = 60
+
   const startMinutes = timeToMinutes(settings.startTime)
   const endMinutes = timeToMinutes(settings.endTime)
   const regularMinutes = endMinutes - startMinutes
-  const regularHours = minutesToHours(regularMinutes)
+  // Paid hours exclude the 1-hour lunch break
+  const paidRegularHours = minutesToHours(Math.max(1, regularMinutes - LUNCH_MINUTES))
   const hourlyRate =
     settings.rateType === 'daily'
-      ? settings.rateAmount / regularHours
+      ? settings.rateAmount / paidRegularHours
       : settings.rateAmount
 
   const inMinutes = timeToMinutes(timeIn)
@@ -42,11 +45,13 @@ export function computeRecord(
   }
 
   const outMinutes = timeToMinutes(timeOut)
-  const workedMinutes = outMinutes - inMinutes
-  const hoursWorked = minutesToHours(Math.max(0, workedMinutes))
+  const rawWorkedMinutes = outMinutes - inMinutes
+  // Deduct 1-hour lunch break from displayed hours worked
+  const workedMinutes = Math.max(0, rawWorkedMinutes - LUNCH_MINUTES)
+  const hoursWorked = minutesToHours(workedMinutes)
 
   const otThreshold = endMinutes + settings.otThresholdMinutes
-  const isOT = outMinutes > otThreshold
+  const isOT = outMinutes >= otThreshold
   const otMinutes = isOT ? outMinutes - endMinutes : 0
   const otHours = minutesToHours(Math.max(0, otMinutes))
 
@@ -56,7 +61,7 @@ export function computeRecord(
       ? settings.rateAmount * settings.holidayMultiplier
       : settings.rateAmount
   } else {
-    const billableHours = Math.min(hoursWorked, regularHours)
+    const billableHours = Math.min(hoursWorked, paidRegularHours)
     baseEarnings = billableHours * hourlyRate
     if (isHoliday) baseEarnings *= settings.holidayMultiplier
   }

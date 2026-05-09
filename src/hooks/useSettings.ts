@@ -23,6 +23,7 @@ export function useSettings(uid: string | null) {
 
   useEffect(() => {
     if (!uid) { setLoading(false); return }
+    setLoading(true)
     getSettings(uid).then((s) => {
       setSettings(s)
       setLoading(false)
