@@ -1,5 +1,6 @@
 'use client'
 import { useState, ReactNode, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { useApp } from '@/context/AppContext'
 import { loginWithGoogle, register, login, saveSettings } from '@/lib/firestore'
 import { toast } from 'sonner'
@@ -65,7 +66,7 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
       uid: user.uid,
       name,
       email: user.email ?? '',
-      startTime, endTime, 
+      startTime, endTime,
       fixedWorkingHours,
       rateType,
       rateAmount: parseFloat(rateAmount) || 0,
@@ -100,6 +101,14 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
     }
   }
 
+  const router = useRouter()
+
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.replace('/login')
+    }
+  }, [user, authLoading, router])
+
   if (authLoading || settingsLoading) {
     return (
       <div className="h-screen flex items-center justify-center bg-gray-50">
@@ -110,60 +119,8 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
 
   if (!user) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-6">
-        <div className="w-full max-w-sm bg-white rounded-[2rem] shadow-2xl shadow-gray-200/50 border border-gray-100 overflow-hidden animate-in fade-in zoom-in-95 duration-500">
-          <div className="bg-emerald-500 p-10 text-center text-white relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 blur-2xl" />
-            <div className="absolute bottom-0 left-0 w-24 h-24 bg-black/5 rounded-full -ml-12 -mb-12 blur-xl" />
-            
-            <div className="relative inline-flex items-center justify-center w-14 h-14 bg-white/20 rounded-2xl backdrop-blur-md mb-4 border border-white/20">
-              <Clock className="w-7 h-7 text-white" />
-            </div>
-            <h1 className="relative text-3xl font-black tracking-tight">ClockIn</h1>
-            <p className="relative text-emerald-100 text-xs mt-1.5 font-bold uppercase tracking-widest">Attendance & Payroll</p>
-          </div>
-          
-          <form onSubmit={handleSubmit} className="p-8 lg:p-10 space-y-6">
-            <div className="space-y-4">
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1">Email Address</label>
-                <input type="email" placeholder="you@example.com" className={inputCls} value={email} onChange={(e) => setEmail(e.target.value)} required />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1">Password</label>
-                <input type="password" placeholder="••••••••" className={inputCls} value={password} onChange={(e) => setPassword(e.target.value)} required />
-              </div>
-            </div>
-
-            <button type="submit" disabled={loading} className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3.5 rounded-2xl transition-all shadow-xl shadow-emerald-200 flex items-center justify-center gap-2 cursor-pointer group">
-              {loading ? (
-                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              ) : (
-                <>
-                  <span className="text-sm">{mode === 'login' ? 'Sign In to Dashboard' : 'Create Your Account'}</span>
-                  <ChevronRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
-                </>
-              )}
-            </button>
-
-            <div className="relative py-2">
-              <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-100"></div></div>
-              <div className="relative flex justify-center text-[10px] uppercase font-black text-gray-400 tracking-tighter"><span className="bg-white px-3">secure connection</span></div>
-            </div>
-
-            <button type="button" onClick={handleGoogle} disabled={loading} className="w-full bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 font-bold py-3.5 rounded-2xl transition-all flex items-center justify-center gap-3 cursor-pointer shadow-sm text-sm">
-              <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/smartlock/google.svg" className="w-4 h-4" alt="Google" />
-              Continue with Google
-            </button>
-
-            <p className="text-center text-xs text-gray-500 mt-4">
-              {mode === 'login' ? "New to ClockIn?" : "Already have an account?"}{' '}
-              <button type="button" onClick={() => setMode(mode === 'login' ? 'register' : 'login')} className="text-emerald-600 font-black hover:underline cursor-pointer">
-                {mode === 'login' ? 'Create Account' : 'Sign In'}
-              </button>
-            </p>
-          </form>
-        </div>
+      <div className="h-screen flex items-center justify-center bg-gray-50">
+        <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin" />
       </div>
     )
   }
@@ -183,7 +140,7 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
 
           <form onSubmit={handleSubmit} className="space-y-4 lg:space-y-6">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
-              
+
               {/* Left Column: Basic & Schedule */}
               <div className="space-y-4">
                 <div className="bg-white rounded-2xl p-5 lg:p-6 shadow-xl shadow-gray-200/30 border border-gray-100">
@@ -230,7 +187,7 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
                         </p>
                       </div>
                     )}
-                    
+
                     {!fixedWorkingHours && (
                       <p className="text-[9px] text-gray-400 leading-tight italic px-1">
                         * Flexible time means you won't be marked "Late" regardless of your clock-in time.
@@ -258,14 +215,13 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
                         <button type="button" onClick={() => setFixedRestDays(false)} className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${!fixedRestDays ? 'bg-emerald-500 text-white shadow-md' : 'text-gray-400 hover:text-gray-600'}`}>Flexible</button>
                       </div>
                     </div>
-                    
+
                     {fixedRestDays ? (
                       <div className="grid grid-cols-4 gap-1.5">
                         {DAYS.map((d, i) => (
                           <button type="button" key={d} onClick={() => toggleRestDay(i)}
-                            className={`py-1.5 rounded-lg text-[10px] font-bold transition-all border ${
-                              restDays.includes(i) ? 'bg-emerald-500 text-white border-emerald-500 shadow-sm' : 'bg-white text-gray-400 border-gray-100 hover:bg-gray-50'
-                            }`}>
+                            className={`py-1.5 rounded-lg text-[10px] font-bold transition-all border ${restDays.includes(i) ? 'bg-emerald-500 text-white border-emerald-500 shadow-sm' : 'bg-white text-gray-400 border-gray-100 hover:bg-gray-50'
+                              }`}>
                             {d}
                           </button>
                         ))}
