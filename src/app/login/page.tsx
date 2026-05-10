@@ -88,7 +88,7 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex bg-gray-50">
       {/* Left panel — branding */}
-      <div className="hidden lg:flex flex-col justify-between w-105 shrink-0 bg-white border-r border-gray-100 p-10">
+      <div className="hidden lg:flex flex-col justify-between w-[420px] shrink-0 bg-white border-r border-gray-100 p-10">
         {/* Logo */}
         <div className="flex items-center gap-2.5">
           <div className="w-9 h-9 bg-emerald-500 rounded-xl flex items-center justify-center shadow-sm shadow-emerald-200">
