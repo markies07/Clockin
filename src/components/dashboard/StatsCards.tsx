@@ -138,7 +138,7 @@ export default function StatsCards({ records, settings }: Props) {
 
   return (
     <div className="space-y-3">
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {stats.map(({ label, value, sub, badge, visual }) => (
           <div key={label} className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
             <div className="flex items-start justify-between mb-3">
@@ -168,29 +168,39 @@ export default function StatsCards({ records, settings }: Props) {
       </div>
 
       {/* Payroll schedule strip */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-4 lg:px-5 py-3.5 flex flex-col lg:flex-row lg:items-center gap-3 lg:gap-6">
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-4 lg:px-5 py-4 flex flex-col lg:flex-row lg:items-center gap-4 lg:gap-6">
         <div className="flex items-center gap-2 shrink-0">
           <CalendarClock className="w-4 h-4 text-emerald-500" />
-          <span className="text-xs font-bold text-gray-700">Payroll Schedule</span>
+          <span className="text-xs font-bold text-gray-700 uppercase tracking-wide">Payroll Schedule</span>
         </div>
-        <div className="flex flex-wrap items-center gap-1.5 text-xs">
-          <span className="w-2 h-2 rounded-full bg-emerald-500" />
-          <span className="font-semibold text-gray-600">Current period:</span>
-          <span className="text-gray-500">{currentPeriod.label}</span>
-          <span className="text-gray-300 mx-1">·</span>
-          <span className="font-semibold text-gray-600">Pay on:</span>
-          <span className="font-bold text-emerald-600">{currentPeriod.payDateLabel}</span>
-          <span className="text-gray-300 mx-1">·</span>
-          <span className="font-bold text-emerald-700">{formatCurrency(periodEarnings, settings.currency)}</span>
-        </div>
-        <div className="flex flex-wrap items-center gap-1.5 text-xs lg:ml-auto">
-          <span className="w-2 h-2 rounded-full bg-gray-300" />
-          <span className="font-semibold text-gray-400">Next period:</span>
-          <span className="text-gray-400">{nextPeriod.label}</span>
-          <span className="text-gray-300 mx-1">·</span>
-          <span className="text-gray-400">Pay on {nextPeriod.payDateLabel}</span>
-          <span className="text-gray-300 mx-1">·</span>
-          <span className="text-gray-400">{formatCurrency(nextPeriodEarnings, settings.currency)}</span>
+        <div className="flex-1 space-y-4 lg:space-y-0 lg:flex lg:flex-row lg:items-center lg:gap-6">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 text-xs">
+            <div className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-500" />
+              <span className="font-bold text-gray-600">Current period:</span>
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5 ml-3.5 sm:ml-0">
+              <span className="text-gray-500">{currentPeriod.label}</span>
+              <span className="text-gray-300 mx-1 hidden sm:inline">·</span>
+              <span className="font-bold text-gray-600">Pay on:</span>
+              <span className="font-bold text-emerald-600">{currentPeriod.payDateLabel}</span>
+              <span className="text-gray-300 mx-1 hidden sm:inline">·</span>
+              <span className="font-black text-emerald-700">{formatCurrency(periodEarnings, settings.currency)}</span>
+            </div>
+          </div>
+          <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 text-xs lg:ml-auto opacity-60 lg:opacity-100">
+            <div className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-gray-300" />
+              <span className="font-bold text-gray-400">Next period:</span>
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5 ml-3.5 sm:ml-0">
+              <span className="text-gray-400">{nextPeriod.label}</span>
+              <span className="text-gray-300 mx-1 hidden sm:inline">·</span>
+              <span className="text-gray-400">Pay on {nextPeriod.payDateLabel}</span>
+              <span className="text-gray-300 mx-1 hidden sm:inline">·</span>
+              <span className="text-gray-400">{formatCurrency(nextPeriodEarnings, settings.currency)}</span>
+            </div>
+          </div>
         </div>
       </div>
     </div>

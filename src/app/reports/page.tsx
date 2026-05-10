@@ -129,16 +129,16 @@ function ReportsPage() {
           </div>
 
           {/* Stats grid */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {summaryStats.map(({ label, value, badgeCls, textCls }) => (
-              <div key={label} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+              <div key={label} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 lg:p-5">
                 <div className="flex items-start justify-between mb-3">
-                  <p className="text-sm font-semibold text-gray-500">{label}</p>
-                  <span className={`text-[10px] font-bold text-white px-2 py-0.5 rounded-full ${badgeCls}`}>
+                  <p className="text-xs lg:text-sm font-semibold text-gray-500">{label}</p>
+                  <span className={`text-[9px] lg:text-[10px] font-bold text-white px-2 py-0.5 rounded-full ${badgeCls}`}>
                     {typeof value === 'number' ? `${value}` : value}
                   </span>
                 </div>
-                <p className={`text-3xl font-extrabold ${textCls}`}>{value}</p>
+                <p className={`text-2xl lg:text-3xl font-extrabold truncate ${textCls}`}>{value}</p>
               </div>
             ))}
           </div>

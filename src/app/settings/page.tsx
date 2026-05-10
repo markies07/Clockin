@@ -28,13 +28,13 @@ const TABS: { id: TabId; label: string; icon: React.ElementType; description: st
 
 function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
-    <div className="py-5 border-b border-gray-100 last:border-0">
-      <div className="flex items-start justify-between gap-6">
-        <div className="w-56 shrink-0 pt-0.5">
-          <p className="text-sm font-semibold text-gray-800">{label}</p>
-          {hint && <p className="text-xs text-gray-400 mt-0.5">{hint}</p>}
+    <div className="py-4 lg:py-5 border-b border-gray-100 last:border-0">
+      <div className="flex flex-col lg:flex-row items-start justify-between gap-3 lg:gap-6">
+        <div className="lg:w-56 shrink-0 pt-0.5">
+          <p className="text-sm font-bold text-gray-800">{label}</p>
+          {hint && <p className="text-[11px] text-gray-400 mt-0.5 leading-tight">{hint}</p>}
         </div>
-        <div className="flex-1 max-w-md">{children}</div>
+        <div className="w-full lg:flex-1 lg:max-w-md">{children}</div>
       </div>
     </div>
   )
@@ -184,20 +184,19 @@ function SettingsPage() {
               {/* Tab nav — icon grid on mobile, vertical sidebar on desktop */}
               <nav className="w-full lg:w-52 lg:shrink-0 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
                 {/* Mobile: 4-column icon grid */}
-                <div className="grid grid-cols-4 lg:hidden">
+                <div className="flex lg:hidden overflow-x-auto scrollbar-hide border-b border-gray-50">
                   {TABS.map(({ id, label, icon: Icon }) => (
                     <button key={id} type="button" onClick={() => setActiveTab(id)}
-                      className={`flex flex-col items-center justify-center py-3 gap-1 cursor-pointer transition-colors border-r border-gray-50 last:border-0 ${
-                        activeTab === id ? 'bg-emerald-50' : 'hover:bg-gray-50'
+                      className={`flex flex-1 flex-col items-center justify-center py-2.5 px-1 gap-1 cursor-pointer transition-colors border-r border-gray-50 last:border-0 min-w-[70px] ${
+                        activeTab === id ? 'bg-emerald-50' : 'bg-white hover:bg-gray-50'
                       }`}
                     >
-                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${activeTab === id ? 'bg-emerald-100' : 'bg-gray-100'}`}>
-                        <Icon className={`w-4 h-4 ${activeTab === id ? 'text-emerald-600' : 'text-gray-400'}`} />
+                      <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${activeTab === id ? 'bg-emerald-100' : 'bg-gray-100'}`}>
+                        <Icon className={`w-3.5 h-3.5 ${activeTab === id ? 'text-emerald-600' : 'text-gray-400'}`} />
                       </div>
-                      <span className={`text-[10px] font-bold leading-tight text-center ${activeTab === id ? 'text-emerald-600' : 'text-gray-400'}`}>
+                      <span className={`text-[9px] font-bold leading-tight text-center ${activeTab === id ? 'text-emerald-600' : 'text-gray-400'}`}>
                         {label === 'Work Schedule' ? 'Schedule' : label === 'Pay & Rates' ? 'Pay' : label}
                       </span>
-                      {activeTab === id && <span className="w-1 h-1 rounded-full bg-emerald-500" />}
                     </button>
                   ))}
                 </div>
@@ -227,13 +226,13 @@ function SettingsPage() {
                 <form onSubmit={handleSave}>
                   <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
                     {/* Panel header */}
-                    <div className="px-6 py-5 border-b border-gray-100">
-                      <p className="font-bold text-gray-900">{activeTabInfo.label}</p>
-                      <p className="text-xs text-gray-400 mt-0.5">{activeTabInfo.description}</p>
+                    <div className="px-5 lg:px-6 py-4 lg:py-5 border-b border-gray-100">
+                      <p className="font-bold text-gray-900 text-sm lg:text-base">{activeTabInfo.label}</p>
+                      <p className="text-[11px] text-gray-400 mt-0.5">{activeTabInfo.description}</p>
                     </div>
 
                     {/* Panel content */}
-                    <div className="px-6">
+                    <div className="px-5 lg:px-6">
 
                       {/* ── Profile ── */}
                       {activeTab === 'profile' && (
@@ -323,13 +322,13 @@ function SettingsPage() {
                               )}
                             </div>
                           </Field>
-                          <Field label="Public Holidays" hint="Dates marked as holidays (holiday pay applies)">
-                            <div className="flex gap-2">
+                           <Field label="Public Holidays" hint="Dates marked as holidays (holiday pay applies)">
+                            <div className="flex flex-col sm:flex-row gap-2">
                               <input type="date" className={`${inputCls} flex-1 cursor-pointer`} value={holidayInput} onChange={(e) => setHolidayInput(e.target.value)} />
                               <button
                                 type="button"
                                 onClick={addHoliday}
-                                className="px-4 py-2.5 bg-gray-900 hover:bg-gray-800 text-white text-sm font-bold rounded-lg transition-colors cursor-pointer"
+                                className="w-full sm:w-auto px-6 py-2.5 bg-gray-900 hover:bg-gray-800 text-white text-sm font-bold rounded-lg transition-colors cursor-pointer"
                               >
                                 Add
                               </button>
@@ -443,11 +442,11 @@ function SettingsPage() {
                       {/* ── Data ── */}
                       {activeTab === 'data' && (
                         <>
-                          <Field label="Export CSV" hint="Download all attendance records as a spreadsheet">
+                           <Field label="Export CSV" hint="Download all attendance records as a spreadsheet">
                             <button
                               type="button"
                               onClick={exportCSV}
-                              className="flex items-center gap-2 px-4 py-2.5 bg-gray-50 hover:bg-gray-100 border border-gray-200 text-gray-700 text-sm font-bold rounded-lg transition-colors cursor-pointer"
+                              className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 bg-gray-50 hover:bg-gray-100 border border-gray-200 text-gray-700 text-sm font-bold rounded-lg transition-colors cursor-pointer"
                             >
                               <Download className="w-4 h-4" /> Export CSV
                             </button>
@@ -456,7 +455,7 @@ function SettingsPage() {
                             <button
                               type="button"
                               onClick={exportJSON}
-                              className="flex items-center gap-2 px-4 py-2.5 bg-gray-50 hover:bg-gray-100 border border-gray-200 text-gray-700 text-sm font-bold rounded-lg transition-colors cursor-pointer"
+                              className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 bg-gray-50 hover:bg-gray-100 border border-gray-200 text-gray-700 text-sm font-bold rounded-lg transition-colors cursor-pointer"
                             >
                               <Download className="w-4 h-4" /> Download Backup
                             </button>
@@ -465,7 +464,7 @@ function SettingsPage() {
                             <button
                               type="button"
                               onClick={() => setShowResetDialog(true)}
-                              className="flex items-center gap-2 px-4 py-2.5 bg-red-50 hover:bg-red-100 border border-red-200 text-red-500 text-sm font-bold rounded-lg transition-colors cursor-pointer"
+                              className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 bg-red-50 hover:bg-red-100 border border-red-200 text-red-500 text-sm font-bold rounded-lg transition-colors cursor-pointer"
                             >
                               <Trash2 className="w-4 h-4" /> Delete All Records
                             </button>
