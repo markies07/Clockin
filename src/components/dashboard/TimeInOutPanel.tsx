@@ -77,7 +77,7 @@ export default function TimeInOutPanel({ todayRecord, startTime, onTimeIn, onTim
   const [quote] = useState(() => restQuotes[Math.floor(Math.random() * restQuotes.length)])
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden h-full flex flex-col">
       {/* Header */}
       <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-gray-50">
         <div className="flex items-center gap-2">
@@ -104,18 +104,18 @@ export default function TimeInOutPanel({ todayRecord, startTime, onTimeIn, onTim
         </div>
 
         {isRestDay ? (
-          <div className="py-8 px-4 flex flex-col items-center text-center space-y-4 animate-in fade-in zoom-in duration-500">
-            <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center border border-emerald-100 shadow-sm">
-              <span className="text-3xl">🧘</span>
+          <div className="flex-1 flex flex-col items-center justify-center text-center space-y-6 animate-in fade-in zoom-in duration-500 py-10">
+            <div className="w-20 h-20 bg-emerald-50 rounded-full flex items-center justify-center border border-emerald-100 shadow-sm">
+              <span className="text-4xl">🧘</span>
             </div>
-            <div className="space-y-1">
-              <p className="text-lg font-black text-gray-900 tracking-tight">Time to Relax!</p>
-              <p className="text-sm text-gray-500 font-medium leading-relaxed max-w-[200px]">
+            <div className="space-y-2">
+              <p className="text-xl font-black text-gray-900 tracking-tight">Time to Relax!</p>
+              <p className="text-sm text-gray-500 font-medium leading-relaxed max-w-[240px] mx-auto">
                 {quote}
               </p>
             </div>
-            <div className="pt-2">
-              <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full uppercase tracking-widest border border-emerald-100">
+            <div className="pt-4">
+              <span className="text-[11px] font-bold text-emerald-600 bg-emerald-50 px-4 py-1.5 rounded-full uppercase tracking-widest border border-emerald-100">
                 Scheduled Rest Day
               </span>
             </div>

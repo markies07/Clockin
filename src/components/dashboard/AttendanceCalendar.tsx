@@ -129,7 +129,7 @@ export default function AttendanceCalendar({ records, settings, onSaveRecord }: 
 
   return (
     <>
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 h-full flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">

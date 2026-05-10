@@ -49,7 +49,7 @@ function Dashboard() {
             <StatsCards records={records} settings={settings} />
 
             {/* Calendar + Time panel */}
-            <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 lg:gap-5 items-start">
+            <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 lg:gap-5">
               <div className="lg:col-span-3">
                 <AttendanceCalendar records={records} settings={settings} onSaveRecord={saveRecordForDate} />
               </div>
