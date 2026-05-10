@@ -13,8 +13,8 @@ import BottomNav from '@/components/layout/BottomNav'
 import { cn } from '@/lib/utils'
 
 function LogPage() {
-  const { user, settings } = useApp()
-  const { records, loading } = useAttendance(user?.uid ?? null, settings)
+  const { user, settings, updateSettings } = useApp()
+  const { records, loading, saveRecordForDate } = useAttendance(user?.uid ?? null, settings, updateSettings)
   const [filterMonth, setFilterMonth] = useState(format(new Date(), 'yyyy-MM'))
   const [page, setPage] = useState(1)
   const PAGE_SIZE = 10

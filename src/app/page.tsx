@@ -12,8 +12,11 @@ import { useApp } from '@/context/AppContext'
 import { useAttendance } from '@/hooks/useAttendance'
 
 function Dashboard() {
-  const { user, settings } = useApp()
-  const { records, loading, todayRecord, timeIn, timeOut, addNote, saveRecordForDate } = useAttendance(user?.uid ?? null, settings)
+  const { user, settings, authLoading, settingsLoading, updateSettings } = useApp()
+  const { 
+    records, loading, todayRecord, 
+    timeIn, timeOut, addNote, saveRecordForDate 
+  } = useAttendance(user?.uid ?? null, settings, updateSettings)
 
   if (!settings) return null
 

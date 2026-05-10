@@ -13,7 +13,7 @@ import {
 interface Props {
   records: AttendanceRecord[]
   settings: UserSettings
-  onSaveRecord: (date: string, timeIn: string | null, timeOut: string | null, notes: string, isRestDay?: boolean) => Promise<void>
+  onSaveRecord: (date: string, timeIn: string | null, timeOut: string | null, notes: string, isRestDay?: boolean, offsetUsed?: number) => Promise<void>
 }
 
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -59,6 +59,7 @@ interface EditState {
   timeOut: string
   notes: string
   isRestDay: boolean
+  offsetUsed: number
   existing: AttendanceRecord | null
 }
 
@@ -91,6 +92,7 @@ export default function AttendanceCalendar({ records, settings, onSaveRecord }: 
         timeOut: settings.endTime,
         notes: '',
         isRestDay: variant === 'rest',
+        offsetUsed: 0,
         existing: null,
       })
     }
@@ -104,6 +106,7 @@ export default function AttendanceCalendar({ records, settings, onSaveRecord }: 
       timeOut: record.timeOut ?? '',
       notes: record.notes ?? '',
       isRestDay: record.isRestDay ?? false,
+      offsetUsed: record.offsetUsed ?? 0,
       existing: record,
     })
   }
@@ -117,6 +120,7 @@ export default function AttendanceCalendar({ records, settings, onSaveRecord }: 
       editState.isRestDay ? null : (editState.timeOut || null),
       editState.notes,
       editState.isRestDay,
+      editState.offsetUsed,
     )
     setSaving(false)
     setEditState(null)
@@ -328,6 +332,33 @@ export default function AttendanceCalendar({ records, settings, onSaveRecord }: 
                     <p className="text-[11px] text-gray-400">Leave blank if you haven&apos;t clocked out yet.</p>
                   </div>
                 </>
+              )}
+
+              {/* Offset Usage */}
+              {settings.otType === 'offset' && !editState.isRestDay && (
+                <div className="bg-purple-50 p-4 rounded-xl border border-purple-100 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-[10px] font-bold text-purple-600 uppercase tracking-wide">Use Offset</p>
+                      <p className="text-[9px] text-purple-400">Available: {settings.offsetBalance.toFixed(1)}h</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                       <input 
+                         type="number" 
+                         step="0.5"
+                         min="0"
+                         max={settings.offsetBalance + (editState.existing?.offsetUsed || 0)}
+                         value={editState.offsetUsed}
+                         onChange={(e) => setEditState(s => s && ({ ...s, offsetUsed: parseFloat(e.target.value) || 0 }))}
+                         className="w-16 px-2 py-1 bg-white border border-purple-200 rounded-lg text-xs font-bold text-purple-700 text-center focus:outline-none focus:ring-1 focus:ring-purple-400"
+                       />
+                       <span className="text-xs font-bold text-purple-600">hours</span>
+                    </div>
+                  </div>
+                  <p className="text-[9px] text-purple-400 leading-tight italic">
+                    * Using offset adds hours to your daily total without working.
+                  </p>
+                </div>
               )}
 
               {/* Notes */}

@@ -5,7 +5,7 @@ import { AttendanceRecord, UserSettings } from '@/types'
 import { computeRecord } from '@/lib/salary'
 import { getTodayString, getCurrentTime, isHoliday } from '@/lib/attendance'
 
-export function useAttendance(uid: string | null, settings: UserSettings | null) {
+export function useAttendance(uid: string | null, settings: UserSettings | null, updateSettings?: (data: Partial<UserSettings>) => Promise<void>) {
   const [records, setRecords] = useState<AttendanceRecord[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -58,6 +58,15 @@ export function useAttendance(uid: string | null, settings: UserSettings | null)
     const time = manualTime || getCurrentTime()
     const holiday = isHoliday(today, settings)
     const computed = computeRecord(todayRecord.timeIn, time, settings, holiday)
+    
+    // Update Offset Balance if applicable
+    if (settings.otType === 'offset' && updateSettings) {
+      const balanceDelta = (computed as any).otHours || 0
+      if (balanceDelta > 0) {
+        await updateSettings({ offsetBalance: (settings.offsetBalance || 0) + balanceDelta })
+      }
+    }
+
     const updated = { ...todayRecord, timeOut: time, ...computed, updatedAt: new Date().toISOString() }
     await updateRecord(uid, today, { timeOut: time, ...computed })
     setRecords((prev) => [updated, ...prev.filter((r) => r.id !== today)])
@@ -70,13 +79,28 @@ export function useAttendance(uid: string | null, settings: UserSettings | null)
   }
 
   /** Save or overwrite a record for any past date */
-  async function saveRecordForDate(date: string, timeInVal: string | null, timeOutVal: string | null, notes: string, isRestDayVal: boolean = false) {
+  async function saveRecordForDate(date: string, timeInVal: string | null, timeOutVal: string | null, notes: string, isRestDayVal: boolean = false, offsetUsedVal: number = 0) {
     if (!uid || !settings) return
     const holiday = isHoliday(date, settings)
-    const computed = timeInVal ? computeRecord(timeInVal, timeOutVal, settings, holiday) : {
-      isOT: false, lateMinutes: 0, otHours: 0, hoursWorked: 0, lateDeduction: 0, dailyEarnings: 0
+    const computed = timeInVal ? computeRecord(timeInVal, timeOutVal, settings, holiday, offsetUsedVal) : {
+      isOT: false, lateMinutes: 0, otHours: 0, hoursWorked: 0, offsetUsed: offsetUsedVal, lateDeduction: 0, dailyEarnings: 0
     }
+    
     const existing = records.find((r) => r.id === date)
+
+    // Update Offset Balance if applicable
+    if (settings.otType === 'offset' && updateSettings) {
+      const oldOT = existing?.otHours || 0
+      const oldUsed = existing?.offsetUsed || 0
+      const newOT = (computed as any).otHours || 0
+      const newUsed = offsetUsedVal
+      
+      const balanceDelta = (newOT - oldOT) - (newUsed - oldUsed)
+      if (balanceDelta !== 0) {
+        await updateSettings({ offsetBalance: (settings.offsetBalance || 0) + balanceDelta })
+      }
+    }
+
     const record: AttendanceRecord = {
       id: date, date, timeIn: timeInVal || '', timeOut: timeOutVal,
       isHoliday: holiday, isRestDay: isRestDayVal, notes,

@@ -14,8 +14,8 @@ import ReportsSkeleton from '@/components/skeletons/ReportsSkeleton'
 import BottomNav from '@/components/layout/BottomNav'
 
 function ReportsPage() {
-  const { user, settings } = useApp()
-  const { records, loading } = useAttendance(user?.uid ?? null, settings)
+  const { user, settings, updateSettings } = useApp()
+  const { records, loading } = useAttendance(user?.uid ?? null, settings, updateSettings)
   const [currentDate, setCurrentDate] = useState(new Date())
   const [showSalary, setShowSalary] = useState(false)
 

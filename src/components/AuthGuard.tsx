@@ -32,6 +32,7 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
   const [cutoff2, setCutoff2] = useState('0')
   const [payday1, setPayday1] = useState('25')
   const [payday2, setPayday2] = useState('10')
+  const [otType, setOtType] = useState<'paid' | 'offset'>('paid')
 
   function toggleRestDay(day: number) {
     setRestDays((prev) => prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day])
@@ -77,6 +78,8 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
       payrollSecondCutoff: parseInt(cutoff2) || 0,
       payrollFirstPayday: parseInt(payday1) || 25,
       payrollSecondPayday: parseInt(payday2) || 10,
+      otType,
+      offsetBalance: 0,
       createdAt: new Date().toISOString(),
     }
     await saveSettings(user.uid, onboardingData)
@@ -189,16 +192,25 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-1">
-                        <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest">{fixedWorkingHours ? 'Start Time' : 'Default Start'}</label>
-                        <input type="time" className={inputCls} value={startTime} onChange={(e) => setStartTime(e.target.value)} required />
+                    {fixedWorkingHours ? (
+                      <div className="grid grid-cols-2 gap-3 animate-in fade-in slide-in-from-top-1 duration-300">
+                        <div className="space-y-1">
+                          <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest">Start Time</label>
+                          <input type="time" className={inputCls} value={startTime} onChange={(e) => setStartTime(e.target.value)} required />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest">End Time</label>
+                          <input type="time" className={inputCls} value={endTime} onChange={(e) => setEndTime(e.target.value)} required />
+                        </div>
                       </div>
-                      <div className="space-y-1">
-                        <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest">{fixedWorkingHours ? 'End Time' : 'Default End'}</label>
-                        <input type="time" className={inputCls} value={endTime} onChange={(e) => setEndTime(e.target.value)} required />
+                    ) : (
+                      <div className="bg-blue-50/50 border border-blue-100 rounded-xl p-3 flex gap-2 animate-in fade-in slide-in-from-top-1 duration-300">
+                        <Clock className="w-3.5 h-3.5 text-blue-600 shrink-0 mt-0.5" />
+                        <p className="text-[10px] text-blue-700 font-medium leading-tight">
+                          Flexible mode is active. Your shift is set to 8 working hours (9h total including break). No "Late" penalties will be applied.
+                        </p>
                       </div>
-                    </div>
+                    )}
                     
                     {!fixedWorkingHours && (
                       <p className="text-[9px] text-gray-400 leading-tight italic px-1">
@@ -276,6 +288,21 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
                       <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest">Amount (₱)</label>
                       <input type="number" className={inputCls} value={rateAmount} onChange={(e) => setRateAmount(e.target.value)} required />
                     </div>
+                  </div>
+
+                  <div className="mt-4 pt-4 border-t border-gray-50 space-y-3">
+                    <div className="flex items-center justify-between bg-gray-50 p-1.5 rounded-xl">
+                      <p className="text-[10px] font-bold text-gray-400 pl-2 uppercase tracking-tight">OT Policy</p>
+                      <div className="flex bg-white shadow-sm p-0.5 rounded-lg border border-gray-100">
+                        <button type="button" onClick={() => setOtType('paid')} className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${otType === 'paid' ? 'bg-emerald-500 text-white shadow-md' : 'text-gray-400 hover:text-gray-600'}`}>Standard (Paid)</button>
+                        <button type="button" onClick={() => setOtType('offset')} className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${otType === 'offset' ? 'bg-emerald-500 text-white shadow-md' : 'text-gray-400 hover:text-gray-600'}`}>Offset (Time Off)</button>
+                      </div>
+                    </div>
+                    {otType === 'offset' && (
+                      <p className="text-[9px] text-purple-600 leading-tight italic px-1">
+                        * OT hours will be added to your "Offset Balance" instead of being paid out.
+                      </p>
+                    )}
                   </div>
                 </div>
 

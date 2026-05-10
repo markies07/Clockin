@@ -2,7 +2,7 @@
 import { AttendanceRecord, UserSettings } from '@/types'
 import { formatCurrency, getWorkingDaysInMonth, maskCurrency } from '@/lib/attendance'
 import { format } from 'date-fns'
-import { TrendingUp, TrendingDown, CalendarClock, Eye, EyeOff } from 'lucide-react'
+import { TrendingUp, TrendingDown, CalendarClock, Eye, EyeOff, Clock } from 'lucide-react'
 import { getPayPeriods, earningsForPeriod } from '@/lib/payroll'
 import { useState } from 'react'
 
@@ -122,6 +122,18 @@ export default function StatsCards({ records, settings }: Props) {
       visual: <MiniBarChart values={hoursBars} color="#f97316" />,
     },
   ]
+
+  if (settings.otType === 'offset') {
+    stats.push({
+      label: 'Offset Balance',
+      value: `${(settings.offsetBalance || 0).toFixed(1)}h`,
+      sub: <span>Available hours for time-off</span>,
+      badge: { label: 'Active', positive: true },
+      visual: <div className="w-12 h-12 bg-purple-50 rounded-2xl flex items-center justify-center border border-purple-100">
+        <Clock className="w-6 h-6 text-purple-500" />
+      </div>,
+    })
+  }
 
   return (
     <div className="space-y-3">

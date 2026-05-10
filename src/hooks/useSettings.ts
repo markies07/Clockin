@@ -21,6 +21,8 @@ export const DEFAULT_SETTINGS: Partial<UserSettings> = {
   payrollFirstPayday: 25,
   payrollSecondPayday: 10,
   currency: '₱',
+  otType: 'paid',
+  offsetBalance: 0,
 }
 
 export function useSettings(uid: string | null) {

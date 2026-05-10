@@ -19,6 +19,8 @@ export interface UserSettings {
   payrollFirstPayday: number  // e.g. 25
   payrollSecondPayday: number // e.g. 10 (of next month)
   currency?: string           // e.g. "₱"
+  otType: 'paid' | 'offset'
+  offsetBalance: number       // in hours
   createdAt?: string
   updatedAt?: string
 }
@@ -35,6 +37,7 @@ export interface AttendanceRecord {
   lateMinutes: number
   otHours: number
   hoursWorked: number
+  offsetUsed: number // hours used as offset
   lateDeduction: number
   dailyEarnings: number
   notes: string

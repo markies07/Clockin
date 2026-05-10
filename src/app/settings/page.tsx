@@ -41,7 +41,7 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
 
 function SettingsPage() {
   const { user, settings, updateSettings } = useApp()
-  const { records } = useAttendance(user?.uid ?? null, settings)
+  const { records } = useAttendance(user?.uid ?? null, settings, updateSettings)
   const [activeTab, setActiveTab] = useState<TabId>('profile')
 
   const [name, setName] = useState('')
@@ -59,6 +59,8 @@ function SettingsPage() {
   const [cutoff2, setCutoff2] = useState('0')
   const [payday1, setPayday1] = useState('25')
   const [payday2, setPayday2] = useState('10')
+  const [otType, setOtType] = useState<'paid' | 'offset'>('paid')
+  const [offsetBalance, setOffsetBalance] = useState(0)
   const [holidayInput, setHolidayInput] = useState('')
   const [showResetDialog, setShowResetDialog] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -81,6 +83,8 @@ function SettingsPage() {
     setCutoff2(settings.payrollSecondCutoff?.toString() ?? '0')
     setPayday1(settings.payrollFirstPayday?.toString() ?? '25')
     setPayday2(settings.payrollSecondPayday?.toString() ?? '10')
+    setOtType(settings.otType ?? 'paid')
+    setOffsetBalance(settings.offsetBalance ?? 0)
   }, [settings])
 
   function toggleRestDay(day: number) {
@@ -116,6 +120,7 @@ function SettingsPage() {
       payrollSecondCutoff: parseInt(cutoff2) || 0,
       payrollFirstPayday: parseInt(payday1) || 25,
       payrollSecondPayday: parseInt(payday2) || 10,
+      otType,
     })
     setSaving(false)
     toast.success('Settings saved!')
@@ -238,6 +243,12 @@ function SettingsPage() {
                           <Field label="Email Address" hint="Linked to your account login">
                             <input className={`${inputCls} opacity-50 cursor-not-allowed`} value={user?.email ?? ''} disabled />
                           </Field>
+                          <Field label="Offset Balance" hint="Your accumulated overtime hours (available for time-off)">
+                            <div className="bg-purple-50 border border-purple-100 rounded-xl px-4 py-3 flex items-center justify-between">
+                              <span className="text-sm font-bold text-purple-700">Available Offset</span>
+                              <span className="text-lg font-black text-purple-800">{offsetBalance.toFixed(1)}h</span>
+                            </div>
+                          </Field>
                         </>
                       )}
 
@@ -251,16 +262,25 @@ function SettingsPage() {
                                 <button type="button" onClick={() => setFixedWorkingHours(false)} className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all ${!fixedWorkingHours ? 'bg-white text-emerald-600 shadow-sm' : 'text-gray-500'}`}>Flexible Schedule</button>
                               </div>
 
-                              <div className="grid grid-cols-2 gap-3">
-                                <div>
-                                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block mb-1">{fixedWorkingHours ? 'Start' : 'Default Start'}</label>
-                                  <input type="time" className={`${inputCls} cursor-pointer`} value={startTime} onChange={(e) => setStartTime(e.target.value)} />
+                              {fixedWorkingHours ? (
+                                <div className="grid grid-cols-2 gap-3 animate-in fade-in slide-in-from-top-1 duration-300">
+                                  <div>
+                                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block mb-1">Start</label>
+                                    <input type="time" className={`${inputCls} cursor-pointer`} value={startTime} onChange={(e) => setStartTime(e.target.value)} />
+                                  </div>
+                                  <div>
+                                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block mb-1">End</label>
+                                    <input type="time" className={`${inputCls} cursor-pointer`} value={endTime} onChange={(e) => setEndTime(e.target.value)} />
+                                  </div>
                                 </div>
-                                <div>
-                                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block mb-1">{fixedWorkingHours ? 'End' : 'Default End'}</label>
-                                  <input type="time" className={`${inputCls} cursor-pointer`} value={endTime} onChange={(e) => setEndTime(e.target.value)} />
+                              ) : (
+                                <div className="bg-blue-50/50 border border-blue-100 rounded-xl p-3 flex gap-2 animate-in fade-in slide-in-from-top-1 duration-300">
+                                  <Clock className="w-3.5 h-3.5 text-blue-600 shrink-0 mt-0.5" />
+                                  <p className="text-[10px] text-blue-700 font-medium leading-tight">
+                                    Flexible mode is active. Your shift is set to 8 working hours (9h total including break). No "Late" penalties will be applied.
+                                  </p>
                                 </div>
-                              </div>
+                              )}
                               {!fixedWorkingHours && (
                                 <p className="text-[10px] text-gray-400 leading-tight italic mt-1 px-1">
                                   * Flexible time means no late deductions are applied.
@@ -356,6 +376,19 @@ function SettingsPage() {
                           </Field>
                           <Field label="OT Threshold (minutes)" hint="How many minutes past end time before OT is counted">
                             <input type="number" min={0} className={inputCls} value={otThresholdMinutes} onChange={(e) => setOtThresholdMinutes(e.target.value)} />
+                          </Field>
+                          <Field label="OT Policy" hint="Choose how your extra hours are rewarded">
+                            <div className="space-y-3">
+                              <div className="flex bg-gray-100 p-0.5 rounded-lg w-fit">
+                                <button type="button" onClick={() => setOtType('paid')} className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all ${otType === 'paid' ? 'bg-white text-emerald-600 shadow-sm' : 'text-gray-500'}`}>Paid OT</button>
+                                <button type="button" onClick={() => setOtType('offset')} className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all ${otType === 'offset' ? 'bg-white text-emerald-600 shadow-sm' : 'text-gray-500'}`}>Offset OT</button>
+                              </div>
+                              <p className="text-[10px] text-gray-400 leading-tight italic">
+                                {otType === 'paid' 
+                                  ? '* OT hours are multiplied by your rate and multiplier, then added to your salary.' 
+                                  : '* OT hours are accumulated as an "Offset Balance" which you can use for time off.'}
+                              </p>
+                            </div>
                           </Field>
                           <Field label="Payroll Schedule" hint="Customize your cutoff and payment dates">
                             <div className="space-y-4">
