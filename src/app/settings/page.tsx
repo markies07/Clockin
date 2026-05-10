@@ -242,14 +242,17 @@ function SettingsPage() {
                             <input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} />
                           </Field>
                           <Field label="Email Address" hint="Linked to your account login">
-                            <input className={`${inputCls} opacity-50 cursor-not-allowed`} value={user?.email ?? ''} disabled />
+                            <input disabled value={user?.email || ''} className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm font-medium text-gray-400" />
                           </Field>
-                          <Field label="Offset Balance" hint="Your accumulated overtime hours (available for time-off)">
-                            <div className="bg-purple-50 border border-purple-100 rounded-xl px-4 py-3 flex items-center justify-between">
-                              <span className="text-sm font-bold text-purple-700">Available Offset</span>
-                              <span className="text-lg font-black text-purple-800">{formatDuration(offsetBalance)}</span>
-                            </div>
-                          </Field>
+
+                          {settings.otType === 'offset' && (
+                            <Field label="Offset Balance" hint="Your accumulated overtime hours (available for time-off)">
+                              <div className="bg-purple-50 border border-purple-100 rounded-xl px-4 py-3 flex items-center justify-between">
+                                <span className="text-sm font-bold text-purple-700">Available Offset</span>
+                                <span className="text-lg font-black text-purple-800">{formatDuration(offsetBalance)}</span>
+                              </div>
+                            </Field>
+                          )}
                         </>
                       )}
 
