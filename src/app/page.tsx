@@ -22,6 +22,10 @@ function Dashboard() {
 
   const hour = new Date().getHours()
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
+  const todayDayIndex = new Date().getDay()
+  const isRestDay = settings.fixedRestDays 
+    ? settings.restDays.includes(todayDayIndex) 
+    : todayRecord?.isRestDay ?? false
 
   return (
     <div className="flex h-screen overflow-hidden bg-gray-50">
@@ -56,6 +60,7 @@ function Dashboard() {
                   onTimeIn={timeIn}
                   onTimeOut={timeOut}
                   onAddNote={addNote}
+                  isRestDay={isRestDay}
                 />
               </div>
             </div>
