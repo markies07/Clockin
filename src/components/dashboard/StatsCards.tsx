@@ -115,25 +115,26 @@ export default function StatsCards({ records, settings }: Props) {
       visual: <MiniProgressBar value={absences} max={Math.max(pastWorkingDays.length, 1)} color="#f59e0b" />,
     },
     {
-      label: 'Overtime Hours',
-      value: `${totalOTHours.toFixed(1)}h`,
-      sub: <span>total OT logged this month</span>,
-      badge: { label: `${totalOTHours.toFixed(0)}h`, positive: true },
-      visual: <MiniBarChart values={hoursBars} color="#f97316" />,
+      label: settings.otType === 'offset' ? 'Offset Balance' : 'Overtime Hours',
+      value: settings.otType === 'offset' 
+        ? `${(settings.offsetBalance || 0).toFixed(1)}h`
+        : `${totalOTHours.toFixed(1)}h`,
+      sub: settings.otType === 'offset'
+        ? <span>Available hours for time-off</span>
+        : <span>total OT logged this month</span>,
+      badge: { 
+        label: settings.otType === 'offset' ? 'Active' : `${totalOTHours.toFixed(0)}h`, 
+        positive: true 
+      },
+      visual: settings.otType === 'offset' ? (
+        <div className="w-12 h-12 bg-purple-50 rounded-2xl flex items-center justify-center border border-purple-100">
+          <Clock className="w-6 h-6 text-purple-500" />
+        </div>
+      ) : (
+        <MiniBarChart values={hoursBars} color="#f97316" />
+      ),
     },
   ]
-
-  if (settings.otType === 'offset') {
-    stats.push({
-      label: 'Offset Balance',
-      value: `${(settings.offsetBalance || 0).toFixed(1)}h`,
-      sub: <span>Available hours for time-off</span>,
-      badge: { label: 'Active', positive: true },
-      visual: <div className="w-12 h-12 bg-purple-50 rounded-2xl flex items-center justify-center border border-purple-100">
-        <Clock className="w-6 h-6 text-purple-500" />
-      </div>,
-    })
-  }
 
   return (
     <div className="space-y-3">

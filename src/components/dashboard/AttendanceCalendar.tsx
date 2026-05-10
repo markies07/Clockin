@@ -340,14 +340,14 @@ export default function AttendanceCalendar({ records, settings, onSaveRecord }: 
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-[10px] font-bold text-purple-600 uppercase tracking-wide">Use Offset</p>
-                      <p className="text-[9px] text-purple-400">Available: {settings.offsetBalance.toFixed(1)}h</p>
+                      <p className="text-[9px] text-purple-400">Available: {(settings.offsetBalance || 0).toFixed(1)}h</p>
                     </div>
                     <div className="flex items-center gap-2">
                        <input 
                          type="number" 
                          step="0.5"
                          min="0"
-                         max={settings.offsetBalance + (editState.existing?.offsetUsed || 0)}
+                         max={(settings.offsetBalance || 0) + (editState.existing?.offsetUsed || 0)}
                          value={editState.offsetUsed}
                          onChange={(e) => setEditState(s => s && ({ ...s, offsetUsed: parseFloat(e.target.value) || 0 }))}
                          className="w-16 px-2 py-1 bg-white border border-purple-200 rounded-lg text-xs font-bold text-purple-700 text-center focus:outline-none focus:ring-1 focus:ring-purple-400"
