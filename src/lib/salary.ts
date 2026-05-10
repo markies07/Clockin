@@ -43,7 +43,7 @@ export function computeRecord(
       lateMinutes,
       otHours: 0,
       hoursWorked: 0,
-      offsetUsed: 0,
+      offsetUsed,
       lateDeduction,
       dailyEarnings: 0,
     }

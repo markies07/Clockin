@@ -5,7 +5,7 @@ import Sidebar from '@/components/layout/Sidebar'
 import TopBar from '@/components/layout/TopBar'
 import { useApp } from '@/context/AppContext'
 import { useAttendance } from '@/hooks/useAttendance'
-import { formatCurrency, getWorkingDaysInMonth, maskCurrency } from '@/lib/attendance'
+import { formatCurrency, getWorkingDaysInMonth, maskCurrency, formatDuration } from '@/lib/attendance'
 import { computeMonthlyEarnings } from '@/lib/salary'
 import { format, startOfWeek, endOfWeek, eachDayOfInterval, subWeeks } from 'date-fns'
 import { ChevronLeft, ChevronRight, Flame, Calendar, Clock, AlertCircle, TrendingUp, Info, Eye, EyeOff } from 'lucide-react'
@@ -71,7 +71,13 @@ function ReportsPage() {
     { label: 'Days Worked',  value: presentRecords.length,         icon: Calendar,      badgeCls: 'bg-blue-500',   textCls: 'text-blue-600' },
     { label: 'Absences',     value: absences,                       icon: AlertCircle,   badgeCls: 'bg-amber-400',  textCls: 'text-amber-600' },
     { label: 'Late Days',    value: lateDays,                       icon: Clock,         badgeCls: 'bg-red-400',    textCls: 'text-red-500' },
-    { label: 'OT Hours',     value: `${totalOTHours.toFixed(1)}h`,  icon: TrendingUp,    badgeCls: 'bg-orange-400', textCls: 'text-orange-500' },
+    { 
+      label: settings.otType === 'offset' ? 'Offset Balance' : 'OT Hours',  
+      value: settings.otType === 'offset' ? formatDuration(settings.offsetBalance || 0) : formatDuration(totalOTHours),  
+      icon: settings.otType === 'offset' ? Clock : TrendingUp,    
+      badgeCls: settings.otType === 'offset' ? 'bg-purple-500' : 'bg-orange-400', 
+      textCls: settings.otType === 'offset' ? 'text-purple-600' : 'text-orange-500' 
+    },
   ]
 
   return (

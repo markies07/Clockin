@@ -47,3 +47,13 @@ export function getWorkingDaysInMonth(year: number, month: number, settings: Use
   }
   return days
 }
+
+export function formatDuration(hours: number): string {
+  if (hours <= 0) return '0mns'
+  const h = Math.floor(hours)
+  const m = Math.round((hours - h) * 60)
+  
+  if (h === 0) return `${m}mns`
+  if (m === 0) return `${h}hr`
+  return `${h}hr ${m}mns`
+}

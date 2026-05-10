@@ -11,6 +11,7 @@ import { getAllRecords, deleteRecord } from '@/lib/firestore'
 import { toast } from 'sonner'
 import { Trash2, Download, User, Clock, Wallet, Database, Save, ChevronRight } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
+import { formatDuration } from '@/lib/attendance'
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
@@ -246,7 +247,7 @@ function SettingsPage() {
                           <Field label="Offset Balance" hint="Your accumulated overtime hours (available for time-off)">
                             <div className="bg-purple-50 border border-purple-100 rounded-xl px-4 py-3 flex items-center justify-between">
                               <span className="text-sm font-bold text-purple-700">Available Offset</span>
-                              <span className="text-lg font-black text-purple-800">{offsetBalance.toFixed(1)}h</span>
+                              <span className="text-lg font-black text-purple-800">{formatDuration(offsetBalance)}</span>
                             </div>
                           </Field>
                         </>

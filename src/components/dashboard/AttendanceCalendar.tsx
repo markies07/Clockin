@@ -4,7 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { ChevronLeft, ChevronRight, Info, Pencil, LogIn, LogOut } from 'lucide-react'
 import { toast } from 'sonner'
 import { AttendanceRecord, UserSettings } from '@/types'
-import { formatTime, formatCurrency, isRestDay, isHoliday } from '@/lib/attendance'
+import { formatTime, formatCurrency, isRestDay, isHoliday, formatDuration } from '@/lib/attendance'
 import {
   format, startOfMonth, endOfMonth, eachDayOfInterval,
   getDay, parseISO, isToday, isFuture
@@ -37,18 +37,18 @@ const CELL_STYLES: Record<DayVariant, string> = {
   rest:          'text-gray-600 bg-gray-200/60',
   holiday:       'text-purple-600 bg-purple-50',
   future:        'text-gray-300',
-  absent:        'text-red-400 bg-red-50',
+  absent:        'text-rose-500 bg-rose-50/40',
   'today-empty': 'text-gray-800 bg-white ring-2 ring-emerald-500 ring-offset-1',
-  ot:            'text-orange-600 bg-orange-50',
-  late:          'text-amber-700 bg-amber-50',
+  ot:            'text-indigo-700 bg-indigo-50',
+  late:          'text-amber-600 bg-amber-50/80',
   present:       'text-emerald-700 bg-emerald-50',
 }
 
 const LEGEND = [
   { label: 'On Time',  color: 'bg-emerald-500' },
   { label: 'Late',     color: 'bg-amber-400' },
-  { label: 'Overtime', color: 'bg-orange-400' },
-  { label: 'Absent',   color: 'bg-red-400' },
+  { label: 'Overtime', color: 'bg-indigo-500' },
+  { label: 'Absent',   color: 'bg-rose-500' },
   { label: 'Holiday',  color: 'bg-purple-400' },
   { label: 'Rest Day', color: 'bg-gray-300' },
 ]
@@ -191,9 +191,6 @@ export default function AttendanceCalendar({ records, settings, onSaveRecord }: 
                 `}
               >
                 {format(date, 'd')}
-                {recordMap[dateStr]?.isOT && (
-                  <span className="absolute top-0.5 right-0.5 w-1 h-1 bg-orange-500 rounded-full" />
-                )}
               </button>
             )
           })}
@@ -340,19 +337,19 @@ export default function AttendanceCalendar({ records, settings, onSaveRecord }: 
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-[10px] font-bold text-purple-600 uppercase tracking-wide">Use Offset</p>
-                      <p className="text-[9px] text-purple-400">Available: {(settings.offsetBalance || 0).toFixed(1)}h</p>
+                      <p className="text-[9px] text-purple-400">Available: {formatDuration(settings.offsetBalance || 0)}</p>
                     </div>
                     <div className="flex items-center gap-2">
                        <input 
                          type="number" 
-                         step="0.5"
+                         step="5"
                          min="0"
-                         max={(settings.offsetBalance || 0) + (editState.existing?.offsetUsed || 0)}
-                         value={editState.offsetUsed}
-                         onChange={(e) => setEditState(s => s && ({ ...s, offsetUsed: parseFloat(e.target.value) || 0 }))}
+                         max={Math.round(((settings.offsetBalance || 0) + (editState.existing?.offsetUsed || 0)) * 60)}
+                         value={Math.round(editState.offsetUsed * 60)}
+                         onChange={(e) => setEditState(s => s && ({ ...s, offsetUsed: (parseFloat(e.target.value) || 0) / 60 }))}
                          className="w-16 px-2 py-1 bg-white border border-purple-200 rounded-lg text-xs font-bold text-purple-700 text-center focus:outline-none focus:ring-1 focus:ring-purple-400"
                        />
-                       <span className="text-xs font-bold text-purple-600">hours</span>
+                       <span className="text-xs font-bold text-purple-600">minutes</span>
                     </div>
                   </div>
                   <p className="text-[9px] text-purple-400 leading-tight italic">

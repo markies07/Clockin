@@ -1,6 +1,6 @@
 'use client'
 import { AttendanceRecord, UserSettings } from '@/types'
-import { formatCurrency, getWorkingDaysInMonth, maskCurrency } from '@/lib/attendance'
+import { formatCurrency, getWorkingDaysInMonth, maskCurrency, formatDuration } from '@/lib/attendance'
 import { format } from 'date-fns'
 import { TrendingUp, TrendingDown, CalendarClock, Eye, EyeOff, Clock } from 'lucide-react'
 import { getPayPeriods, earningsForPeriod } from '@/lib/payroll'
@@ -117,13 +117,13 @@ export default function StatsCards({ records, settings }: Props) {
     {
       label: settings.otType === 'offset' ? 'Offset Balance' : 'Overtime Hours',
       value: settings.otType === 'offset' 
-        ? `${(settings.offsetBalance || 0).toFixed(1)}h`
-        : `${totalOTHours.toFixed(1)}h`,
+        ? formatDuration(settings.offsetBalance || 0)
+        : formatDuration(totalOTHours),
       sub: settings.otType === 'offset'
         ? <span>Available hours for time-off</span>
         : <span>total OT logged this month</span>,
       badge: { 
-        label: settings.otType === 'offset' ? 'Active' : `${totalOTHours.toFixed(0)}h`, 
+        label: settings.otType === 'offset' ? 'Active' : formatDuration(totalOTHours), 
         positive: true 
       },
       visual: settings.otType === 'offset' ? (
