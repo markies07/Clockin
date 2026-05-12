@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { LogIn, LogOut, CheckCircle2, Info, Clock } from 'lucide-react'
+import { LogIn, LogOut, CheckCircle2, Info, Clock, UserX } from 'lucide-react'
 import { AttendanceRecord } from '@/types'
 import { formatTime, getCurrentTime } from '@/lib/attendance'
 import { format } from 'date-fns'
@@ -12,10 +12,11 @@ interface Props {
   onTimeIn: (time: string) => Promise<void>
   onTimeOut: (time?: string) => Promise<void>
   onAddNote: (note: string) => Promise<void>
+  onMarkAbsent: () => Promise<void>
   isRestDay?: boolean
 }
 
-export default function TimeInOutPanel({ todayRecord, startTime, onTimeIn, onTimeOut, onAddNote, isRestDay }: Props) {
+export default function TimeInOutPanel({ todayRecord, startTime, onTimeIn, onTimeOut, onAddNote, onMarkAbsent, isRestDay }: Props) {
   const [timeInValue, setTimeInValue] = useState(startTime)
   const [timeOutValue, setTimeOutValue] = useState(getCurrentTime())
   const [useCurrentTimeOut, setUseCurrentTimeOut] = useState(true)
@@ -53,8 +54,12 @@ export default function TimeInOutPanel({ todayRecord, startTime, onTimeIn, onTim
     if (note !== todayRecord?.notes) await onAddNote(note)
   }
 
+  const isAbsent = todayRecord?.status === 'absent' && !todayRecord?.timeIn
+
   const statusCfg = isRestDay
     ? { label: 'Rest Day', dotColor: 'bg-emerald-400', badgeCls: 'bg-emerald-50 text-emerald-600' }
+    : isAbsent
+    ? { label: 'Absent', dotColor: 'bg-rose-500', badgeCls: 'bg-rose-50 text-rose-600' }
     : !hasTimeIn
     ? { label: 'Not Checked In', dotColor: 'bg-gray-400', badgeCls: 'bg-gray-100 text-gray-500' }
     : todayRecord?.status === 'late'
@@ -159,8 +164,17 @@ export default function TimeInOutPanel({ todayRecord, startTime, onTimeIn, onTim
               </div>
             </div>
 
+            {/* ── ABSENT state ── */}
+            {isAbsent && (
+              <div className="bg-rose-50 rounded-xl border border-rose-100 p-4 text-center space-y-2">
+                <UserX className="w-8 h-8 text-rose-300 mx-auto" />
+                <p className="text-sm font-bold text-rose-600">Marked as Absent</p>
+                <p className="text-[11px] text-rose-400">You&apos;ve recorded today as absent. No earnings counted.</p>
+              </div>
+            )}
+
             {/* ── CLOCK IN form ── */}
-            {!hasTimeIn && (
+            {!hasTimeIn && !isAbsent && (
               <div className="bg-gray-50 rounded-xl border border-gray-200 p-4 space-y-3">
                 <p className="text-xs font-bold text-gray-600 uppercase tracking-wide">Set your arrival time</p>
                 <input
@@ -179,6 +193,13 @@ export default function TimeInOutPanel({ todayRecord, startTime, onTimeIn, onTim
                     ? <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
                     : <><LogIn className="w-4 h-4" /> Clock In</>
                   }
+                </button>
+                <button
+                  onClick={async () => { setLoading(true); await onMarkAbsent(); setLoading(false); toast.success('Marked as absent') }}
+                  disabled={loading}
+                  className="w-full flex items-center justify-center gap-2 bg-white hover:bg-rose-50 disabled:opacity-60 text-rose-500 font-bold py-2.5 rounded-xl border border-rose-200 hover:border-rose-300 transition-colors cursor-pointer text-sm"
+                >
+                  <UserX className="w-4 h-4" /> Mark as Absent
                 </button>
               </div>
             )}

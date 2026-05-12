@@ -13,10 +13,15 @@ import { useAttendance } from '@/hooks/useAttendance'
 
 function Dashboard() {
   const { user, settings, authLoading, settingsLoading, updateSettings } = useApp()
-  const { 
-    records, loading, todayRecord, 
-    timeIn, timeOut, addNote, saveRecordForDate 
+  const {
+    records, loading, todayRecord,
+    timeIn, timeOut, addNote, saveRecordForDate
   } = useAttendance(user?.uid ?? null, settings, updateSettings)
+
+  const today = new Date().toISOString().slice(0, 10)
+  async function markAbsent() {
+    await saveRecordForDate(today, null, null, '', false, 0)
+  }
 
   if (!settings) return null
 
@@ -60,6 +65,7 @@ function Dashboard() {
                   onTimeIn={timeIn}
                   onTimeOut={timeOut}
                   onAddNote={addNote}
+                  onMarkAbsent={markAbsent}
                   isRestDay={isRestDay}
                 />
               </div>

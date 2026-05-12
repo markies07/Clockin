@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { ChevronLeft, ChevronRight, Info, Pencil, LogIn, LogOut } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Info, Pencil, LogIn, LogOut, UserX } from 'lucide-react'
 import { toast } from 'sonner'
 import { AttendanceRecord, UserSettings } from '@/types'
 import { formatTime, formatCurrency, isRestDay, isHoliday, formatDuration } from '@/lib/attendance'
@@ -53,12 +53,14 @@ const LEGEND = [
   { label: 'Rest Day', color: 'bg-gray-300' },
 ]
 
+type DayType = 'normal' | 'rest' | 'absent'
+
 interface EditState {
   date: string
   timeIn: string
   timeOut: string
   notes: string
-  isRestDay: boolean
+  dayType: DayType
   offsetUsed: number
   existing: AttendanceRecord | null
 }
@@ -91,7 +93,7 @@ export default function AttendanceCalendar({ records, settings, onSaveRecord }: 
         timeIn: settings.startTime,
         timeOut: settings.endTime,
         notes: '',
-        isRestDay: variant === 'rest',
+        dayType: variant === 'rest' ? 'rest' : 'normal',
         offsetUsed: 0,
         existing: null,
       })
@@ -100,12 +102,13 @@ export default function AttendanceCalendar({ records, settings, onSaveRecord }: 
 
   function openEdit(record: AttendanceRecord) {
     setViewRecord(null)
+    const dayType: DayType = record.isRestDay ? 'rest' : (!record.timeIn ? 'absent' : 'normal')
     setEditState({
       date: record.date,
-      timeIn: record.timeIn,
+      timeIn: record.timeIn || settings.startTime,
       timeOut: record.timeOut ?? '',
       notes: record.notes ?? '',
-      isRestDay: record.isRestDay ?? false,
+      dayType,
       offsetUsed: record.offsetUsed ?? 0,
       existing: record,
     })
@@ -114,17 +117,19 @@ export default function AttendanceCalendar({ records, settings, onSaveRecord }: 
   async function handleSave() {
     if (!editState) return
     setSaving(true)
+    const isRestDay = editState.dayType === 'rest'
+    const isAbsent  = editState.dayType === 'absent'
     await onSaveRecord(
       editState.date,
-      editState.isRestDay ? null : editState.timeIn,
-      editState.isRestDay ? null : (editState.timeOut || null),
+      (isRestDay || isAbsent) ? null : editState.timeIn,
+      (isRestDay || isAbsent) ? null : (editState.timeOut || null),
       editState.notes,
-      editState.isRestDay,
+      isRestDay,
       editState.offsetUsed,
     )
     setSaving(false)
     setEditState(null)
-    toast.success('Record updated successfully!')
+    toast.success('Record saved!')
   }
 
   return (
@@ -213,8 +218,14 @@ export default function AttendanceCalendar({ records, settings, onSaveRecord }: 
             <div className="space-y-3">
               {viewRecord.isRestDay ? (
                 <div className="bg-gray-100 rounded-2xl p-6 text-center border border-gray-200">
-                   <p className="text-lg font-extrabold text-gray-700">Rest Day</p>
-                   <p className="text-sm text-gray-400 mt-1">No attendance records for this day</p>
+                  <p className="text-lg font-extrabold text-gray-700">Rest Day</p>
+                  <p className="text-sm text-gray-400 mt-1">No attendance records for this day</p>
+                </div>
+              ) : !viewRecord.timeIn ? (
+                <div className="bg-rose-50 rounded-2xl p-6 text-center border border-rose-100">
+                  <UserX className="w-8 h-8 text-rose-400 mx-auto mb-2" />
+                  <p className="text-lg font-extrabold text-rose-600">Absent</p>
+                  <p className="text-sm text-rose-400 mt-1">No attendance recorded for this day</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-2 gap-3">
@@ -284,22 +295,55 @@ export default function AttendanceCalendar({ records, settings, onSaveRecord }: 
             </DialogHeader>
 
             <div className="space-y-4">
-              {/* Rest Day Toggle */}
-              <div className="flex items-center justify-between bg-gray-50 p-3 rounded-xl border border-gray-100">
-                <div>
-                  <p className="text-xs font-bold text-gray-700 uppercase tracking-wide">Rest Day</p>
-                  <p className="text-[10px] text-gray-400">Mark this day as a day off</p>
+              {/* Day type selector */}
+              <div>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-2">Day Type</p>
+                <div className="grid grid-cols-3 gap-2">
+                  {([
+                    { type: 'normal', label: 'Normal', desc: 'Clock in/out', color: 'emerald' },
+                    { type: 'rest',   label: 'Rest Day', desc: 'Day off',    color: 'gray' },
+                    { type: 'absent', label: 'Absent',  desc: 'Did not come', color: 'rose' },
+                  ] as { type: DayType; label: string; desc: string; color: string }[]).map(({ type, label, desc, color }) => (
+                    <button
+                      key={type}
+                      type="button"
+                      onClick={() => setEditState(s => s && ({ ...s, dayType: type }))}
+                      className={`flex flex-col items-center py-2.5 px-2 rounded-xl border-2 transition-all cursor-pointer text-center ${
+                        editState.dayType === type
+                          ? color === 'emerald' ? 'border-emerald-500 bg-emerald-50'
+                            : color === 'rose' ? 'border-rose-400 bg-rose-50'
+                            : 'border-gray-400 bg-gray-100'
+                          : 'border-gray-200 bg-white hover:border-gray-300'
+                      }`}
+                    >
+                      <p className={`text-xs font-extrabold ${
+                        editState.dayType === type
+                          ? color === 'emerald' ? 'text-emerald-700'
+                            : color === 'rose' ? 'text-rose-600'
+                            : 'text-gray-700'
+                          : 'text-gray-500'
+                      }`}>{label}</p>
+                      <p className="text-[9px] text-gray-400 mt-0.5">{desc}</p>
+                    </button>
+                  ))}
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setEditState(s => s && ({ ...s, isRestDay: !s.isRestDay }))}
-                  className={`w-10 h-5 rounded-full transition-colors relative ${editState.isRestDay ? 'bg-emerald-500' : 'bg-gray-200'}`}
-                >
-                  <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${editState.isRestDay ? 'left-6' : 'left-1'}`} />
-                </button>
               </div>
 
-              {!editState.isRestDay && (
+              {editState.dayType === 'absent' && (
+                <div className="bg-rose-50 border border-rose-100 rounded-xl p-3 flex items-center gap-2.5">
+                  <UserX className="w-4 h-4 text-rose-400 shrink-0" />
+                  <p className="text-xs text-rose-600 font-medium">This day will be recorded as <strong>Absent</strong>. No earnings will be counted.</p>
+                </div>
+              )}
+
+              {editState.dayType === 'rest' && (
+                <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 flex items-center gap-2.5">
+                  <span className="text-lg">🧘</span>
+                  <p className="text-xs text-gray-600 font-medium">This day will be marked as a <strong>Rest Day</strong>. No deductions will apply.</p>
+                </div>
+              )}
+
+              {editState.dayType === 'normal' && (
                 <>
                   {/* Time In */}
                   <div className="space-y-1.5">
@@ -332,7 +376,7 @@ export default function AttendanceCalendar({ records, settings, onSaveRecord }: 
               )}
 
               {/* Offset Usage */}
-              {settings.otType === 'offset' && !editState.isRestDay && (
+              {settings.otType === 'offset' && editState.dayType === 'normal' && (
                 <div className="bg-purple-50 p-4 rounded-xl border border-purple-100 space-y-2">
                   <div className="flex items-center justify-between">
                     <div>
@@ -378,7 +422,7 @@ export default function AttendanceCalendar({ records, settings, onSaveRecord }: 
                 </button>
                 <button
                   onClick={handleSave}
-                  disabled={saving || (!editState.isRestDay && !editState.timeIn)}
+                  disabled={saving || (editState.dayType === 'normal' && !editState.timeIn)}
                   className="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-60 text-white font-bold text-sm rounded-xl transition-colors cursor-pointer shadow-sm shadow-emerald-200"
                 >
                   {saving
