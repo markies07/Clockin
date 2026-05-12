@@ -1,14 +1,15 @@
 'use client'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, CalendarDays, BarChart2, Settings } from 'lucide-react'
+import { LayoutDashboard, CalendarDays, BarChart2, Settings, Banknote } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const NAV = [
-  { href: '/',         label: 'Dashboard',  icon: LayoutDashboard },
-  { href: '/log',      label: 'Attendance', icon: CalendarDays },
-  { href: '/reports',  label: 'Reports',    icon: BarChart2 },
-  { href: '/settings', label: 'Settings',   icon: Settings },
+  { href: '/',         label: 'Home',    icon: LayoutDashboard },
+  { href: '/log',      label: 'Log',     icon: CalendarDays },
+  { href: '/reports',  label: 'Reports', icon: BarChart2 },
+  { href: '/payroll',  label: 'Payroll', icon: Banknote },
+  { href: '/settings', label: 'Settings', icon: Settings },
 ]
 
 export default function BottomNav() {
@@ -21,15 +22,15 @@ export default function BottomNav() {
         return (
           <Link key={href} href={href}
             className={cn(
-              'flex-1 flex flex-col items-center justify-center py-2.5 gap-0.5 transition-colors',
+              'flex-1 flex flex-col items-center justify-center py-2 gap-0.5 transition-colors',
               active ? 'text-emerald-500' : 'text-gray-400'
             )}
           >
-            <Icon className="w-5 h-5" />
-            <span className={cn('text-[10px] font-bold', active ? 'text-emerald-500' : 'text-gray-400')}>
+            <Icon className="w-[18px] h-[18px]" />
+            <span className={cn('text-[9px] font-bold', active ? 'text-emerald-500' : 'text-gray-400')}>
               {label}
             </span>
-            {active && <span className="w-1 h-1 rounded-full bg-emerald-500 mt-0.5" />}
+            {active && <span className="w-1 h-1 rounded-full bg-emerald-500" />}
           </Link>
         )
       })}

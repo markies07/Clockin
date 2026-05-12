@@ -16,7 +16,7 @@ import {
   GoogleAuthProvider,
 } from 'firebase/auth'
 import { db, auth } from './firebase'
-import { UserSettings, AttendanceRecord } from '@/types'
+import { UserSettings, AttendanceRecord, PayrollRecord } from '@/types'
 
 // Auth
 export async function login(email: string, pass: string) {
@@ -72,4 +72,22 @@ export async function getAllRecords(uid: string): Promise<AttendanceRecord[]> {
 
 export async function deleteRecord(uid: string, date: string): Promise<void> {
   await deleteDoc(doc(db, 'users', uid, 'records', date))
+}
+
+// Payroll records
+export async function getPayrollRecord(uid: string, id: string): Promise<PayrollRecord | null> {
+  const snap = await getDoc(doc(db, 'users', uid, 'payroll', id))
+  return snap.exists() ? (snap.data() as PayrollRecord) : null
+}
+
+export async function savePayrollRecord(uid: string, record: PayrollRecord): Promise<void> {
+  await setDoc(doc(db, 'users', uid, 'payroll', record.id), {
+    ...record,
+    updatedAt: new Date().toISOString(),
+  })
+}
+
+export async function getAllPayrollRecords(uid: string): Promise<PayrollRecord[]> {
+  const snap = await getDocs(collection(db, 'users', uid, 'payroll'))
+  return snap.docs.map((d) => d.data() as PayrollRecord)
 }

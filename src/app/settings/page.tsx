@@ -60,6 +60,11 @@ function SettingsPage() {
   const [cutoff2, setCutoff2] = useState('0')
   const [payday1, setPayday1] = useState('25')
   const [payday2, setPayday2] = useState('10')
+  const [payrollCycleType, setPayrollCycleType] = useState<'semi-monthly' | 'custom'>('semi-monthly')
+  const [payrollAnchorDate, setPayrollAnchorDate] = useState('')
+  const [payrollPeriodDays, setPayrollPeriodDays] = useState('15')
+  const [payrollPayDaysAfter, setPayrollPayDaysAfter] = useState('2')
+  const [payrollSecondPayDaysAfter, setPayrollSecondPayDaysAfter] = useState('2')
   const [otType, setOtType] = useState<'paid' | 'offset'>('paid')
   const [offsetBalance, setOffsetBalance] = useState(0)
   const [holidayInput, setHolidayInput] = useState('')
@@ -84,6 +89,11 @@ function SettingsPage() {
     setCutoff2(settings.payrollSecondCutoff?.toString() ?? '0')
     setPayday1(settings.payrollFirstPayday?.toString() ?? '25')
     setPayday2(settings.payrollSecondPayday?.toString() ?? '10')
+    setPayrollCycleType(settings.payrollCycleType ?? 'semi-monthly')
+    setPayrollAnchorDate(settings.payrollAnchorDate ?? '')
+    setPayrollPeriodDays(settings.payrollPeriodDays?.toString() ?? '15')
+    setPayrollPayDaysAfter(settings.payrollPayDaysAfterCutoff?.toString() ?? '2')
+    setPayrollSecondPayDaysAfter(settings.payrollSecondPayDaysAfterCutoff?.toString() ?? '2')
     setOtType(settings.otType ?? 'paid')
     setOffsetBalance(settings.offsetBalance ?? 0)
   }, [settings])
@@ -121,6 +131,11 @@ function SettingsPage() {
       payrollSecondCutoff: parseInt(cutoff2) || 0,
       payrollFirstPayday: parseInt(payday1) || 25,
       payrollSecondPayday: parseInt(payday2) || 10,
+      payrollCycleType,
+      payrollAnchorDate: payrollAnchorDate || undefined,
+      payrollPeriodDays: parseInt(payrollPeriodDays) || 15,
+      payrollPayDaysAfterCutoff: parseInt(payrollPayDaysAfter) || 2,
+      payrollSecondPayDaysAfterCutoff: parseInt(payrollSecondPayDaysAfter) || 2,
       otType,
     })
     setSaving(false)
@@ -393,47 +408,90 @@ function SettingsPage() {
                               </p>
                             </div>
                           </Field>
-                          <Field label="Payroll Schedule" hint="Customize your cutoff and payment dates">
+                          <Field label="Payroll Schedule" hint="Choose how your pay periods are defined">
                             <div className="space-y-4">
-                              <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block mb-1">1st Cutoff (Day)</label>
-                                  <select className={inputCls} value={cutoff1} onChange={(e) => setCutoff1(e.target.value)}>
-                                    {Array.from({ length: 31 }, (_, i) => i + 1).map(d => (
-                                      <option key={d} value={d}>{d}</option>
-                                    ))}
-                                  </select>
-                                </div>
-                                <div>
-                                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block mb-1">1st Payday (Day)</label>
-                                  <select className={inputCls} value={payday1} onChange={(e) => setPayday1(e.target.value)}>
-                                    {Array.from({ length: 31 }, (_, i) => i + 1).map(d => (
-                                      <option key={d} value={d}>{d}</option>
-                                    ))}
-                                    <option value="0">End of the Month</option>
-                                  </select>
-                                </div>
+                              {/* Cycle type toggle */}
+                              <div className="flex bg-gray-100 p-0.5 rounded-lg w-fit">
+                                <button type="button" onClick={() => setPayrollCycleType('semi-monthly')}
+                                  className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${payrollCycleType === 'semi-monthly' ? 'bg-white text-emerald-600 shadow-sm' : 'text-gray-500'}`}>
+                                  Semi-Monthly
+                                </button>
+                                <button type="button" onClick={() => setPayrollCycleType('custom')}
+                                  className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${payrollCycleType === 'custom' ? 'bg-white text-emerald-600 shadow-sm' : 'text-gray-500'}`}>
+                                  Custom Cycle
+                                </button>
                               </div>
-                              <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block mb-1">2nd Cutoff (Day)</label>
-                                  <select className={inputCls} value={cutoff2} onChange={(e) => setCutoff2(e.target.value)}>
-                                    <option value="0">End of the Month</option>
-                                    {Array.from({ length: 31 }, (_, i) => i + 1).map(d => (
-                                      <option key={d} value={d}>{d}</option>
-                                    ))}
-                                  </select>
+
+                              {payrollCycleType === 'semi-monthly' && (
+                                <div className="space-y-3">
+                                  <p className="text-[10px] text-gray-400 leading-tight">
+                                    Standard semi-monthly: Period 1 runs from the 1st to the cutoff day. Period 2 runs from the next day to the end of the month.
+                                  </p>
+                                  <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block mb-1">1st Cutoff (Day)</label>
+                                      <select className={inputCls} value={cutoff1} onChange={(e) => setCutoff1(e.target.value)}>
+                                        {Array.from({ length: 31 }, (_, i) => i + 1).map(d => <option key={d} value={d}>{d}</option>)}
+                                      </select>
+                                    </div>
+                                    <div>
+                                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block mb-1">1st Payday (Day)</label>
+                                      <select className={inputCls} value={payday1} onChange={(e) => setPayday1(e.target.value)}>
+                                        {Array.from({ length: 31 }, (_, i) => i + 1).map(d => <option key={d} value={d}>{d}</option>)}
+                                        <option value="0">End of Month</option>
+                                      </select>
+                                    </div>
+                                    <div>
+                                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block mb-1">2nd Cutoff (Day)</label>
+                                      <select className={inputCls} value={cutoff2} onChange={(e) => setCutoff2(e.target.value)}>
+                                        <option value="0">End of Month</option>
+                                        {Array.from({ length: 31 }, (_, i) => i + 1).map(d => <option key={d} value={d}>{d}</option>)}
+                                      </select>
+                                    </div>
+                                    <div>
+                                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block mb-1">2nd Payday (Day)</label>
+                                      <select className={inputCls} value={payday2} onChange={(e) => setPayday2(e.target.value)}>
+                                        {Array.from({ length: 31 }, (_, i) => i + 1).map(d => <option key={d} value={d}>{d}</option>)}
+                                        <option value="0">End of Month</option>
+                                      </select>
+                                    </div>
+                                  </div>
                                 </div>
-                                <div>
-                                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block mb-1">2nd Payday (Day)</label>
-                                  <select className={inputCls} value={payday2} onChange={(e) => setPayday2(e.target.value)}>
-                                    {Array.from({ length: 31 }, (_, i) => i + 1).map(d => (
-                                      <option key={d} value={d}>{d}</option>
-                                    ))}
-                                    <option value="0">End of the Month</option>
-                                  </select>
+                              )}
+
+                              {payrollCycleType === 'custom' && (
+                                <div className="space-y-3">
+                                  <div className="bg-blue-50 border border-blue-100 rounded-xl p-3">
+                                    <p className="text-[11px] text-blue-700 font-semibold leading-snug">
+                                      Custom cycle: Set a known period start date and how many days each period lasts.
+                                      Example: anchor = Apr 29, period = 15 days → Apr 29–May 13, then May 14–May 28, and so on.
+                                    </p>
+                                  </div>
+                                  <div>
+                                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block mb-1">Anchor Date (known period start)</label>
+                                    <input type="date" className={`${inputCls} cursor-pointer`} value={payrollAnchorDate} onChange={(e) => setPayrollAnchorDate(e.target.value)} />
+                                  </div>
+                                  <div>
+                                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block mb-1">Days per Period</label>
+                                    <input type="number" min={1} max={31} className={inputCls} value={payrollPeriodDays} onChange={(e) => setPayrollPeriodDays(e.target.value)} placeholder="15" />
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block mb-1">Odd Period Pay (days after cutoff)</label>
+                                      <input type="number" min={0} className={inputCls} value={payrollPayDaysAfter} onChange={(e) => setPayrollPayDaysAfter(e.target.value)} placeholder="2" />
+                                    </div>
+                                    <div>
+                                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block mb-1">Even Period Pay (days after cutoff)</label>
+                                      <input type="number" min={0} className={inputCls} value={payrollSecondPayDaysAfter} onChange={(e) => setPayrollSecondPayDaysAfter(e.target.value)} placeholder="2" />
+                                    </div>
+                                  </div>
+                                  {payrollAnchorDate && (
+                                    <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3 text-[11px] text-emerald-700 font-medium">
+                                      Next periods: <strong>{payrollAnchorDate}</strong> + every <strong>{payrollPeriodDays} days</strong>, pay <strong>{payrollPayDaysAfter} days</strong> after each cutoff.
+                                    </div>
+                                  )}
                                 </div>
-                              </div>
+                              )}
                             </div>
                           </Field>
                         </>

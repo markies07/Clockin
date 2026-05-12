@@ -14,13 +14,42 @@ export interface UserSettings {
   darkMode: boolean
   fixedRestDays: boolean      // true if rest days are same every week
   fixedWorkingHours: boolean   // true if working hours are same every day
+  // Semi-monthly payroll (legacy / default)
   payrollFirstCutoff: number  // e.g. 15
   payrollSecondCutoff: number // e.g. 0 for end of month
   payrollFirstPayday: number  // e.g. 25
   payrollSecondPayday: number // e.g. 10 (of next month)
+  // Flexible payroll cycle
+  payrollCycleType?: 'semi-monthly' | 'custom'
+  payrollAnchorDate?: string  // yyyy-MM-dd – known period start date (for custom cycle)
+  payrollPeriodDays?: number  // days per period (e.g. 15)
+  payrollPayDaysAfterCutoff?: number        // pay N days after period-1 end
+  payrollSecondPayDaysAfterCutoff?: number  // pay N days after period-2 end
   currency?: string           // e.g. "₱"
   otType: 'paid' | 'offset'
   offsetBalance: number       // in hours
+  createdAt?: string
+  updatedAt?: string
+}
+
+export interface PayrollRecord {
+  id: string           // "cutoffStart_cutoffEnd"
+  periodStart: string  // yyyy-MM-dd
+  periodEnd: string    // yyyy-MM-dd
+  payDate: string      // yyyy-MM-dd
+  periodLabel: string  // "Apr 29 – May 13"
+  status: 'pending' | 'paid'
+  paidDate?: string
+  grossPay: number
+  regularPay: number
+  otPay: number
+  holidayPay: number
+  lateDeductions: number
+  netPay: number
+  daysWorked: number
+  totalHours: number
+  otHours: number
+  lateMinutes: number
   createdAt?: string
   updatedAt?: string
 }

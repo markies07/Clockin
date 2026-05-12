@@ -1,7 +1,7 @@
 'use client'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, CalendarDays, BarChart2, Settings, Clock, ChevronRight } from 'lucide-react'
+import { LayoutDashboard, CalendarDays, BarChart2, Settings, Clock, ChevronRight, Banknote } from 'lucide-react'
 import { useApp } from '@/context/AppContext'
 import { cn } from '@/lib/utils'
 import { format } from 'date-fns'
@@ -10,6 +10,7 @@ const NAV = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/log', label: 'Attendance', icon: CalendarDays },
   { href: '/reports', label: 'Reports', icon: BarChart2 },
+  { href: '/payroll', label: 'Payroll', icon: Banknote },
   { href: '/settings', label: 'Settings', icon: Settings },
 ]
 
