@@ -356,27 +356,16 @@ function SettingsPage() {
                               )}
                             </div>
                           </Field>
-                           <Field label="Public Holidays" hint="Dates marked as holidays (holiday pay applies)">
-                            <div className="flex flex-col sm:flex-row gap-2">
-                              <input type="date" className={`${inputCls} flex-1 cursor-pointer`} value={holidayInput} onChange={(e) => setHolidayInput(e.target.value)} />
-                              <button
-                                type="button"
-                                onClick={addHoliday}
-                                className="w-full sm:w-auto px-6 py-2.5 bg-gray-900 hover:bg-gray-800 text-white text-sm font-bold rounded-lg transition-colors cursor-pointer"
-                              >
-                                Add
-                              </button>
-                            </div>
-                            {settings.holidays.length > 0 && (
-                              <div className="flex flex-wrap gap-2 mt-3">
-                                {settings.holidays.map((h) => (
-                                  <span key={h} className="flex items-center gap-1.5 bg-purple-50 text-purple-600 text-xs px-3 py-1.5 rounded-full font-semibold border border-purple-100">
-                                    {h}
-                                    <button type="button" onClick={() => removeHoliday(h)} className="hover:text-red-500 transition-colors cursor-pointer font-bold">×</button>
-                                  </span>
-                                ))}
+                          <Field label="Holidays" hint="Mark specific days as holidays directly in the dashboard calendar or daily attendance panel">
+                            <div className="bg-purple-50 border border-purple-100 rounded-xl p-3.5 flex items-start gap-2.5">
+                              <span className="text-lg shrink-0">📅</span>
+                              <div>
+                                <p className="text-xs font-bold text-purple-700">Set holidays from the Dashboard</p>
+                                <p className="text-[11px] text-purple-500 mt-0.5 leading-relaxed">
+                                  Open any day in the calendar or use the Daily Attendance panel and select <strong>Holiday</strong> as the day type. Holiday pay (×{settings.holidayMultiplier}) will automatically apply if you worked that day.
+                                </p>
                               </div>
-                            )}
+                            </div>
                           </Field>
                         </>
                       )}

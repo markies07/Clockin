@@ -13,7 +13,7 @@ import {
 interface Props {
   records: AttendanceRecord[]
   settings: UserSettings
-  onSaveRecord: (date: string, timeIn: string | null, timeOut: string | null, notes: string, isRestDay?: boolean, offsetUsed?: number) => Promise<void>
+  onSaveRecord: (date: string, timeIn: string | null, timeOut: string | null, notes: string, isRestDay?: boolean, offsetUsed?: number, isHolidayOverride?: boolean) => Promise<void>
 }
 
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -53,7 +53,7 @@ const LEGEND = [
   { label: 'Rest Day', color: 'bg-gray-300' },
 ]
 
-type DayType = 'normal' | 'rest' | 'absent'
+type DayType = 'normal' | 'holiday' | 'rest' | 'absent'
 
 interface EditState {
   date: string
@@ -102,7 +102,9 @@ export default function AttendanceCalendar({ records, settings, onSaveRecord }: 
 
   function openEdit(record: AttendanceRecord) {
     setViewRecord(null)
-    const dayType: DayType = record.isRestDay ? 'rest' : (!record.timeIn ? 'absent' : 'normal')
+    const dayType: DayType = record.isRestDay ? 'rest'
+      : record.isHoliday ? 'holiday'
+      : (!record.timeIn ? 'absent' : 'normal')
     setEditState({
       date: record.date,
       timeIn: record.timeIn || settings.startTime,
@@ -117,15 +119,18 @@ export default function AttendanceCalendar({ records, settings, onSaveRecord }: 
   async function handleSave() {
     if (!editState) return
     setSaving(true)
-    const isRestDay = editState.dayType === 'rest'
-    const isAbsent  = editState.dayType === 'absent'
+    const isRestDay  = editState.dayType === 'rest'
+    const isAbsent   = editState.dayType === 'absent'
+    const isHoliday  = editState.dayType === 'holiday'
+    const noWork     = isRestDay || isAbsent || (isHoliday && !editState.timeIn)
     await onSaveRecord(
       editState.date,
-      (isRestDay || isAbsent) ? null : editState.timeIn,
-      (isRestDay || isAbsent) ? null : (editState.timeOut || null),
+      noWork ? null : editState.timeIn,
+      noWork ? null : (editState.timeOut || null),
       editState.notes,
       isRestDay,
       editState.offsetUsed,
+      isHoliday ? true : (isRestDay ? false : undefined),
     )
     setSaving(false)
     setEditState(null)
@@ -221,6 +226,12 @@ export default function AttendanceCalendar({ records, settings, onSaveRecord }: 
                   <p className="text-lg font-extrabold text-gray-700">Rest Day</p>
                   <p className="text-sm text-gray-400 mt-1">No attendance records for this day</p>
                 </div>
+              ) : viewRecord.isHoliday && !viewRecord.timeIn ? (
+                <div className="bg-purple-50 rounded-2xl p-6 text-center border border-purple-100">
+                  <span className="text-3xl block mb-2">🎉</span>
+                  <p className="text-lg font-extrabold text-purple-700">Holiday</p>
+                  <p className="text-sm text-purple-400 mt-1">Non-working holiday — no work recorded</p>
+                </div>
               ) : !viewRecord.timeIn ? (
                 <div className="bg-rose-50 rounded-2xl p-6 text-center border border-rose-100">
                   <UserX className="w-8 h-8 text-rose-400 mx-auto mb-2" />
@@ -300,18 +311,20 @@ export default function AttendanceCalendar({ records, settings, onSaveRecord }: 
                 <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-2">Day Type</p>
                 <div className="grid grid-cols-3 gap-2">
                   {([
-                    { type: 'normal', label: 'Normal', desc: 'Clock in/out', color: 'emerald' },
-                    { type: 'rest',   label: 'Rest Day', desc: 'Day off',    color: 'gray' },
-                    { type: 'absent', label: 'Absent',  desc: 'Did not come', color: 'rose' },
+                    { type: 'normal',  label: 'Normal',   desc: 'Clock in/out',    color: 'emerald' },
+                    { type: 'holiday', label: 'Holiday',  desc: 'Holiday pay',     color: 'purple' },
+                    { type: 'rest',    label: 'Rest Day', desc: 'Day off',         color: 'gray' },
+                    { type: 'absent',  label: 'Absent',   desc: 'Did not come',    color: 'rose' },
                   ] as { type: DayType; label: string; desc: string; color: string }[]).map(({ type, label, desc, color }) => (
                     <button
                       key={type}
                       type="button"
                       onClick={() => setEditState(s => s && ({ ...s, dayType: type }))}
-                      className={`flex flex-col items-center py-2.5 px-2 rounded-xl border-2 transition-all cursor-pointer text-center ${
+                      className={`flex flex-col items-center py-2.5 px-1 rounded-xl border-2 transition-all cursor-pointer text-center ${
                         editState.dayType === type
                           ? color === 'emerald' ? 'border-emerald-500 bg-emerald-50'
-                            : color === 'rose' ? 'border-rose-400 bg-rose-50'
+                            : color === 'purple' ? 'border-purple-400 bg-purple-50'
+                            : color === 'rose'   ? 'border-rose-400 bg-rose-50'
                             : 'border-gray-400 bg-gray-100'
                           : 'border-gray-200 bg-white hover:border-gray-300'
                       }`}
@@ -319,7 +332,8 @@ export default function AttendanceCalendar({ records, settings, onSaveRecord }: 
                       <p className={`text-xs font-extrabold ${
                         editState.dayType === type
                           ? color === 'emerald' ? 'text-emerald-700'
-                            : color === 'rose' ? 'text-rose-600'
+                            : color === 'purple' ? 'text-purple-700'
+                            : color === 'rose'   ? 'text-rose-600'
                             : 'text-gray-700'
                           : 'text-gray-500'
                       }`}>{label}</p>
@@ -343,7 +357,17 @@ export default function AttendanceCalendar({ records, settings, onSaveRecord }: 
                 </div>
               )}
 
-              {editState.dayType === 'normal' && (
+              {editState.dayType === 'holiday' && (
+                <div className="bg-purple-50 border border-purple-100 rounded-xl p-3 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">🎉</span>
+                    <p className="text-xs text-purple-700 font-bold">Holiday — {settings.holidayMultiplier}× pay applies if you worked</p>
+                  </div>
+                  <p className="text-[11px] text-purple-500">If you worked this day, enter your time in/out below and holiday pay will be computed automatically. Leave blank if you didn&apos;t work.</p>
+                </div>
+              )}
+
+              {(editState.dayType === 'normal' || editState.dayType === 'holiday') && (
                 <>
                   {/* Time In */}
                   <div className="space-y-1.5">
@@ -376,7 +400,7 @@ export default function AttendanceCalendar({ records, settings, onSaveRecord }: 
               )}
 
               {/* Offset Usage */}
-              {settings.otType === 'offset' && editState.dayType === 'normal' && (
+              {settings.otType === 'offset' && (editState.dayType === 'normal' || editState.dayType === 'holiday') && (
                 <div className="bg-purple-50 p-4 rounded-xl border border-purple-100 space-y-2">
                   <div className="flex items-center justify-between">
                     <div>

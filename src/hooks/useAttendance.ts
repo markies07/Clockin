@@ -43,12 +43,13 @@ export function useAttendance(uid: string | null, settings: UserSettings | null,
   async function timeIn(manualTime?: string) {
     if (!uid || !settings || todayRecord?.timeIn) return
     const time = manualTime || getCurrentTime()
-    const holiday = isHoliday(today, settings)
+    // Preserve manual holiday flag if already set on today's record
+    const holiday = todayRecord?.isHoliday !== undefined ? todayRecord.isHoliday : isHoliday(today, settings)
     const computed = computeRecord(time, null, settings, holiday)
-    
+
     const record: AttendanceRecord = {
       id: today, date: today, timeIn: time, timeOut: null,
-      isHoliday: holiday, isRestDay: false, notes: '', createdAt: new Date().toISOString(), ...computed,
+      isHoliday: holiday, isRestDay: false, notes: todayRecord?.notes ?? '', createdAt: todayRecord?.createdAt ?? new Date().toISOString(), ...computed,
     } as AttendanceRecord
     await saveRecord(uid, record)
     setRecords((prev) => [record, ...prev.filter((r) => r.id !== today)])
@@ -85,9 +86,9 @@ export function useAttendance(uid: string | null, settings: UserSettings | null,
   }
 
   /** Save or overwrite a record for any past date */
-  async function saveRecordForDate(date: string, timeInVal: string | null, timeOutVal: string | null, notes: string, isRestDayVal: boolean = false, offsetUsedVal: number = 0) {
+  async function saveRecordForDate(date: string, timeInVal: string | null, timeOutVal: string | null, notes: string, isRestDayVal: boolean = false, offsetUsedVal: number = 0, isHolidayOverride?: boolean) {
     if (!uid || !settings) return
-    const holiday = isHoliday(date, settings)
+    const holiday = isHolidayOverride !== undefined ? isHolidayOverride : isHoliday(date, settings)
     const existing = records.find((r) => r.id === date)
 
     const computed = timeInVal ? computeRecord(timeInVal, timeOutVal, settings, holiday, offsetUsedVal) : {

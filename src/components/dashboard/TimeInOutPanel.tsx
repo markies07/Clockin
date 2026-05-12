@@ -13,10 +13,12 @@ interface Props {
   onTimeOut: (time?: string) => Promise<void>
   onAddNote: (note: string) => Promise<void>
   onMarkAbsent: () => Promise<void>
+  onMarkHoliday: () => Promise<void>
   isRestDay?: boolean
+  holidayMultiplier?: number
 }
 
-export default function TimeInOutPanel({ todayRecord, startTime, onTimeIn, onTimeOut, onAddNote, onMarkAbsent, isRestDay }: Props) {
+export default function TimeInOutPanel({ todayRecord, startTime, onTimeIn, onTimeOut, onAddNote, onMarkAbsent, onMarkHoliday, isRestDay, holidayMultiplier = 2 }: Props) {
   const [timeInValue, setTimeInValue] = useState(startTime)
   const [timeOutValue, setTimeOutValue] = useState(getCurrentTime())
   const [useCurrentTimeOut, setUseCurrentTimeOut] = useState(true)
@@ -54,12 +56,17 @@ export default function TimeInOutPanel({ todayRecord, startTime, onTimeIn, onTim
     if (note !== todayRecord?.notes) await onAddNote(note)
   }
 
-  const isAbsent = todayRecord?.status === 'absent' && !todayRecord?.timeIn
+  const isAbsent  = todayRecord?.status === 'absent' && !todayRecord?.timeIn
+  const isTodayHoliday = todayRecord?.isHoliday ?? false
 
   const statusCfg = isRestDay
-    ? { label: 'Rest Day', dotColor: 'bg-emerald-400', badgeCls: 'bg-emerald-50 text-emerald-600' }
+    ? { label: 'Rest Day',    dotColor: 'bg-emerald-400', badgeCls: 'bg-emerald-50 text-emerald-600' }
     : isAbsent
-    ? { label: 'Absent', dotColor: 'bg-rose-500', badgeCls: 'bg-rose-50 text-rose-600' }
+    ? { label: 'Absent',      dotColor: 'bg-rose-500',    badgeCls: 'bg-rose-50 text-rose-600' }
+    : isTodayHoliday && !hasTimeIn
+    ? { label: 'Holiday',     dotColor: 'bg-purple-500',  badgeCls: 'bg-purple-50 text-purple-600' }
+    : isTodayHoliday && hasTimeIn
+    ? { label: 'Holiday Work', dotColor: 'bg-purple-500', badgeCls: 'bg-purple-50 text-purple-600' }
     : !hasTimeIn
     ? { label: 'Not Checked In', dotColor: 'bg-gray-400', badgeCls: 'bg-gray-100 text-gray-500' }
     : todayRecord?.status === 'late'
@@ -164,6 +171,15 @@ export default function TimeInOutPanel({ todayRecord, startTime, onTimeIn, onTim
               </div>
             </div>
 
+            {/* ── HOLIDAY no-work state ── */}
+            {isTodayHoliday && !hasTimeIn && !isAbsent && (
+              <div className="bg-purple-50 rounded-xl border border-purple-100 p-4 text-center space-y-2">
+                <span className="text-3xl block">🎉</span>
+                <p className="text-sm font-bold text-purple-700">Holiday</p>
+                <p className="text-[11px] text-purple-400">Today is marked as a holiday. Clock in below if you worked.</p>
+              </div>
+            )}
+
             {/* ── ABSENT state ── */}
             {isAbsent && (
               <div className="bg-rose-50 rounded-xl border border-rose-100 p-4 text-center space-y-2">
@@ -184,23 +200,40 @@ export default function TimeInOutPanel({ todayRecord, startTime, onTimeIn, onTim
                   className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-800 focus:outline-none focus:ring-2 focus:ring-emerald-400/30 focus:border-emerald-400 cursor-pointer"
                 />
                 <p className="text-[11px] text-gray-400">Enter the time you actually arrived — even if you&apos;re logging in late.</p>
+                {isTodayHoliday && (
+                  <div className="flex items-center gap-1.5 bg-purple-50 border border-purple-100 rounded-lg px-3 py-2">
+                    <span className="text-sm">🎉</span>
+                    <p className="text-[11px] text-purple-600 font-semibold">Holiday — {holidayMultiplier}× pay will apply</p>
+                  </div>
+                )}
                 <button
                   onClick={handleTimeIn}
                   disabled={loading}
-                  className="w-full flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-60 text-white font-bold py-2.5 rounded-xl transition-colors shadow-sm shadow-emerald-200 cursor-pointer text-sm"
+                  className={`w-full flex items-center justify-center gap-2 disabled:opacity-60 text-white font-bold py-2.5 rounded-xl transition-colors cursor-pointer text-sm shadow-sm ${isTodayHoliday ? 'bg-purple-500 hover:bg-purple-600 shadow-purple-200' : 'bg-emerald-500 hover:bg-emerald-600 shadow-emerald-200'}`}
                 >
                   {loading
                     ? <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                    : <><LogIn className="w-4 h-4" /> Clock In</>
+                    : <><LogIn className="w-4 h-4" /> {isTodayHoliday ? 'Clock In (Holiday)' : 'Clock In'}</>
                   }
                 </button>
-                <button
-                  onClick={async () => { setLoading(true); await onMarkAbsent(); setLoading(false); toast.success('Marked as absent') }}
-                  disabled={loading}
-                  className="w-full flex items-center justify-center gap-2 bg-white hover:bg-rose-50 disabled:opacity-60 text-rose-500 font-bold py-2.5 rounded-xl border border-rose-200 hover:border-rose-300 transition-colors cursor-pointer text-sm"
-                >
-                  <UserX className="w-4 h-4" /> Mark as Absent
-                </button>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={async () => { setLoading(true); await onMarkAbsent(); setLoading(false); toast.success('Marked as absent') }}
+                    disabled={loading}
+                    className="flex items-center justify-center gap-1.5 bg-white hover:bg-rose-50 disabled:opacity-60 text-rose-500 font-bold py-2 rounded-xl border border-rose-200 hover:border-rose-300 transition-colors cursor-pointer text-xs"
+                  >
+                    <UserX className="w-3.5 h-3.5" /> Mark Absent
+                  </button>
+                  {!isTodayHoliday && (
+                    <button
+                      onClick={async () => { setLoading(true); await onMarkHoliday(); setLoading(false); toast.success('Marked as holiday') }}
+                      disabled={loading}
+                      className="flex items-center justify-center gap-1.5 bg-white hover:bg-purple-50 disabled:opacity-60 text-purple-500 font-bold py-2 rounded-xl border border-purple-200 hover:border-purple-300 transition-colors cursor-pointer text-xs"
+                    >
+                      🎉 Mark Holiday
+                    </button>
+                  )}
+                </div>
               </div>
             )}
 

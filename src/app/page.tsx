@@ -20,7 +20,10 @@ function Dashboard() {
 
   const today = new Date().toISOString().slice(0, 10)
   async function markAbsent() {
-    await saveRecordForDate(today, null, null, '', false, 0)
+    await saveRecordForDate(today, null, null, '', false, 0, false)
+  }
+  async function markHoliday() {
+    await saveRecordForDate(today, null, null, '', false, 0, true)
   }
 
   if (!settings) return null
@@ -66,7 +69,9 @@ function Dashboard() {
                   onTimeOut={timeOut}
                   onAddNote={addNote}
                   onMarkAbsent={markAbsent}
+                  onMarkHoliday={markHoliday}
                   isRestDay={isRestDay}
+                  holidayMultiplier={settings.holidayMultiplier}
                 />
               </div>
             </div>
