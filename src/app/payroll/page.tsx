@@ -340,7 +340,10 @@ function PayrollPage() {
   const isNextMonth = isSameMonth(selectedMonth, addMonths(today, 1))
 
   // Total stats
-  const totalPaid = payrollRecords.filter((r) => r.status === 'paid').reduce((s, r) => s + r.netPay, 0)
+  const monthStr = format(selectedMonth, 'yyyy-MM')
+  const totalPaid = payrollRecords
+    .filter((r) => r.status === 'paid' && (r.periodStart.startsWith(monthStr) || r.periodEnd.startsWith(monthStr)))
+    .reduce((s, r) => s + r.netPay, 0)
 
   // History: past months (not current, not future)
   const historyMonths: { label: string; month: Date }[] = []
@@ -368,7 +371,7 @@ function PayrollPage() {
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-4 py-2.5 flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
               <div>
-                <p className="text-[10px] text-gray-400 font-semibold">Total Received</p>
+                <p className="text-[10px] text-gray-400 font-semibold">Received · {format(selectedMonth, 'MMM yyyy')}</p>
                 <p className="font-extrabold text-gray-900 text-sm">{formatCurrency(totalPaid, currency)}</p>
               </div>
             </div>
