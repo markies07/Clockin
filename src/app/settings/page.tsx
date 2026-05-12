@@ -12,6 +12,7 @@ import { toast } from 'sonner'
 import { Trash2, Download, User, Clock, Wallet, Database, Save, ChevronRight } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { formatDuration } from '@/lib/attendance'
+import { getPeriodsForMonth } from '@/lib/payroll'
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
@@ -61,10 +62,16 @@ function SettingsPage() {
   const [payday1, setPayday1] = useState('25')
   const [payday2, setPayday2] = useState('10')
   const [payrollCycleType, setPayrollCycleType] = useState<'semi-monthly' | 'custom'>('semi-monthly')
-  const [payrollAnchorDate, setPayrollAnchorDate] = useState('')
-  const [payrollPeriodDays, setPayrollPeriodDays] = useState('15')
-  const [payrollPayDaysAfter, setPayrollPayDaysAfter] = useState('2')
-  const [payrollSecondPayDaysAfter, setPayrollSecondPayDaysAfter] = useState('2')
+  const [p1StartDay, setP1StartDay] = useState('29')
+  const [p1StartOffset, setP1StartOffset] = useState('-1')
+  const [p1EndDay, setP1EndDay] = useState('13')
+  const [p1EndOffset, setP1EndOffset] = useState('0')
+  const [p1PayDay, setP1PayDay] = useState('15')
+  const [p1PayOffset, setP1PayOffset] = useState('0')
+  const [p2EndDay, setP2EndDay] = useState('28')
+  const [p2EndOffset, setP2EndOffset] = useState('0')
+  const [p2PayDay, setP2PayDay] = useState('10')
+  const [p2PayOffset, setP2PayOffset] = useState('1')
   const [otType, setOtType] = useState<'paid' | 'offset'>('paid')
   const [offsetBalance, setOffsetBalance] = useState(0)
   const [holidayInput, setHolidayInput] = useState('')
@@ -90,10 +97,16 @@ function SettingsPage() {
     setPayday1(settings.payrollFirstPayday?.toString() ?? '25')
     setPayday2(settings.payrollSecondPayday?.toString() ?? '10')
     setPayrollCycleType(settings.payrollCycleType ?? 'semi-monthly')
-    setPayrollAnchorDate(settings.payrollAnchorDate ?? '')
-    setPayrollPeriodDays(settings.payrollPeriodDays?.toString() ?? '15')
-    setPayrollPayDaysAfter(settings.payrollPayDaysAfterCutoff?.toString() ?? '2')
-    setPayrollSecondPayDaysAfter(settings.payrollSecondPayDaysAfterCutoff?.toString() ?? '2')
+    setP1StartDay(settings.payrollP1StartDay?.toString() ?? '29')
+    setP1StartOffset(settings.payrollP1StartOffset?.toString() ?? '-1')
+    setP1EndDay(settings.payrollP1EndDay?.toString() ?? '13')
+    setP1EndOffset(settings.payrollP1EndOffset?.toString() ?? '0')
+    setP1PayDay(settings.payrollP1PayDay?.toString() ?? '15')
+    setP1PayOffset(settings.payrollP1PayOffset?.toString() ?? '0')
+    setP2EndDay(settings.payrollP2EndDay?.toString() ?? '28')
+    setP2EndOffset(settings.payrollP2EndOffset?.toString() ?? '0')
+    setP2PayDay(settings.payrollP2PayDay?.toString() ?? '10')
+    setP2PayOffset(settings.payrollP2PayOffset?.toString() ?? '1')
     setOtType(settings.otType ?? 'paid')
     setOffsetBalance(settings.offsetBalance ?? 0)
   }, [settings])
@@ -132,10 +145,16 @@ function SettingsPage() {
       payrollFirstPayday: parseInt(payday1) || 25,
       payrollSecondPayday: parseInt(payday2) || 10,
       payrollCycleType,
-      payrollAnchorDate: payrollAnchorDate || undefined,
-      payrollPeriodDays: parseInt(payrollPeriodDays) || 15,
-      payrollPayDaysAfterCutoff: parseInt(payrollPayDaysAfter) || 2,
-      payrollSecondPayDaysAfterCutoff: parseInt(payrollSecondPayDaysAfter) || 2,
+      payrollP1StartDay: parseInt(p1StartDay) || 29,
+      payrollP1StartOffset: parseInt(p1StartOffset),
+      payrollP1EndDay: parseInt(p1EndDay) || 13,
+      payrollP1EndOffset: parseInt(p1EndOffset),
+      payrollP1PayDay: parseInt(p1PayDay) || 15,
+      payrollP1PayOffset: parseInt(p1PayOffset),
+      payrollP2EndDay: parseInt(p2EndDay) || 28,
+      payrollP2EndOffset: parseInt(p2EndOffset),
+      payrollP2PayDay: parseInt(p2PayDay) || 10,
+      payrollP2PayOffset: parseInt(p2PayOffset),
       otType,
     })
     setSaving(false)
@@ -408,91 +427,184 @@ function SettingsPage() {
                               </p>
                             </div>
                           </Field>
-                          <Field label="Payroll Schedule" hint="Choose how your pay periods are defined">
-                            <div className="space-y-4">
-                              {/* Cycle type toggle */}
-                              <div className="flex bg-gray-100 p-0.5 rounded-lg w-fit">
-                                <button type="button" onClick={() => setPayrollCycleType('semi-monthly')}
-                                  className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${payrollCycleType === 'semi-monthly' ? 'bg-white text-emerald-600 shadow-sm' : 'text-gray-500'}`}>
-                                  Semi-Monthly
-                                </button>
-                                <button type="button" onClick={() => setPayrollCycleType('custom')}
-                                  className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${payrollCycleType === 'custom' ? 'bg-white text-emerald-600 shadow-sm' : 'text-gray-500'}`}>
-                                  Custom Cycle
-                                </button>
-                              </div>
+                          <Field label="Payroll Schedule" hint="Set your cutoff dates and pay dates">
+                            {(() => {
+                              const MONTH_OPTS = [
+                                { value: '-1', label: 'Previous month' },
+                                { value: '0',  label: 'Current month' },
+                                { value: '1',  label: 'Next month' },
+                              ]
+                              const daySelect = (value: string, onChange: (v: string) => void) => (
+                                <select className={`${inputCls} w-20`} value={value} onChange={(e) => onChange(e.target.value)}>
+                                  {Array.from({ length: 31 }, (_, i) => i + 1).map(d => <option key={d} value={d}>{d}</option>)}
+                                </select>
+                              )
+                              const monthSelect = (value: string, onChange: (v: string) => void, options = MONTH_OPTS) => (
+                                <select className={inputCls} value={value} onChange={(e) => onChange(e.target.value)}>
+                                  {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                                </select>
+                              )
 
-                              {payrollCycleType === 'semi-monthly' && (
-                                <div className="space-y-3">
-                                  <p className="text-[10px] text-gray-400 leading-tight">
-                                    Standard semi-monthly: Period 1 runs from the 1st to the cutoff day. Period 2 runs from the next day to the end of the month.
-                                  </p>
-                                  <div className="grid grid-cols-2 gap-3">
-                                    <div>
-                                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block mb-1">1st Cutoff (Day)</label>
-                                      <select className={inputCls} value={cutoff1} onChange={(e) => setCutoff1(e.target.value)}>
-                                        {Array.from({ length: 31 }, (_, i) => i + 1).map(d => <option key={d} value={d}>{d}</option>)}
-                                      </select>
-                                    </div>
-                                    <div>
-                                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block mb-1">1st Payday (Day)</label>
-                                      <select className={inputCls} value={payday1} onChange={(e) => setPayday1(e.target.value)}>
-                                        {Array.from({ length: 31 }, (_, i) => i + 1).map(d => <option key={d} value={d}>{d}</option>)}
-                                        <option value="0">End of Month</option>
-                                      </select>
-                                    </div>
-                                    <div>
-                                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block mb-1">2nd Cutoff (Day)</label>
-                                      <select className={inputCls} value={cutoff2} onChange={(e) => setCutoff2(e.target.value)}>
-                                        <option value="0">End of Month</option>
-                                        {Array.from({ length: 31 }, (_, i) => i + 1).map(d => <option key={d} value={d}>{d}</option>)}
-                                      </select>
-                                    </div>
-                                    <div>
-                                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block mb-1">2nd Payday (Day)</label>
-                                      <select className={inputCls} value={payday2} onChange={(e) => setPayday2(e.target.value)}>
-                                        {Array.from({ length: 31 }, (_, i) => i + 1).map(d => <option key={d} value={d}>{d}</option>)}
-                                        <option value="0">End of Month</option>
-                                      </select>
-                                    </div>
-                                  </div>
-                                </div>
-                              )}
+                              // Live preview using current settings state
+                              const previewSettings = {
+                                payrollCycleType,
+                                payrollFirstCutoff: parseInt(cutoff1) || 15,
+                                payrollSecondCutoff: parseInt(cutoff2) || 0,
+                                payrollFirstPayday: parseInt(payday1) || 25,
+                                payrollSecondPayday: parseInt(payday2) || 10,
+                                payrollP1StartDay: parseInt(p1StartDay) || 29,
+                                payrollP1StartOffset: parseInt(p1StartOffset),
+                                payrollP1EndDay: parseInt(p1EndDay) || 13,
+                                payrollP1EndOffset: parseInt(p1EndOffset),
+                                payrollP1PayDay: parseInt(p1PayDay) || 15,
+                                payrollP1PayOffset: parseInt(p1PayOffset),
+                                payrollP2EndDay: parseInt(p2EndDay) || 28,
+                                payrollP2EndOffset: parseInt(p2EndOffset),
+                                payrollP2PayDay: parseInt(p2PayDay) || 10,
+                                payrollP2PayOffset: parseInt(p2PayOffset),
+                              } as any
+                              let previewP1 = '', previewP2 = ''
+                              try {
+                                const now = new Date()
+                                const [pp1, pp2] = getPeriodsForMonth(previewSettings, now)
+                                previewP1 = `${pp1.label}  →  Pay on ${pp1.payDateLabel}`
+                                previewP2 = `${pp2.label}  →  Pay on ${pp2.payDateLabel}`
+                              } catch {}
 
-                              {payrollCycleType === 'custom' && (
-                                <div className="space-y-3">
-                                  <div className="bg-blue-50 border border-blue-100 rounded-xl p-3">
-                                    <p className="text-[11px] text-blue-700 font-semibold leading-snug">
-                                      Custom cycle: Set a known period start date and how many days each period lasts.
-                                      Example: anchor = Apr 29, period = 15 days → Apr 29–May 13, then May 14–May 28, and so on.
-                                    </p>
+                              return (
+                                <div className="space-y-4">
+                                  <div className="flex bg-gray-100 p-0.5 rounded-lg w-fit">
+                                    <button type="button" onClick={() => setPayrollCycleType('semi-monthly')}
+                                      className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${payrollCycleType === 'semi-monthly' ? 'bg-white text-emerald-600 shadow-sm' : 'text-gray-500'}`}>
+                                      Standard (1st–15th)
+                                    </button>
+                                    <button type="button" onClick={() => setPayrollCycleType('custom')}
+                                      className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${payrollCycleType === 'custom' ? 'bg-white text-emerald-600 shadow-sm' : 'text-gray-500'}`}>
+                                      Custom Cutoff
+                                    </button>
                                   </div>
-                                  <div>
-                                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block mb-1">Anchor Date (known period start)</label>
-                                    <input type="date" className={`${inputCls} cursor-pointer`} value={payrollAnchorDate} onChange={(e) => setPayrollAnchorDate(e.target.value)} />
-                                  </div>
-                                  <div>
-                                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block mb-1">Days per Period</label>
-                                    <input type="number" min={1} max={31} className={inputCls} value={payrollPeriodDays} onChange={(e) => setPayrollPeriodDays(e.target.value)} placeholder="15" />
-                                  </div>
-                                  <div className="grid grid-cols-2 gap-3">
-                                    <div>
-                                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block mb-1">Odd Period Pay (days after cutoff)</label>
-                                      <input type="number" min={0} className={inputCls} value={payrollPayDaysAfter} onChange={(e) => setPayrollPayDaysAfter(e.target.value)} placeholder="2" />
+
+                                  {payrollCycleType === 'semi-monthly' && (
+                                    <div className="space-y-3">
+                                      <p className="text-[10px] text-gray-400">Period 1 = 1st to cutoff day. Period 2 = next day to end of month.</p>
+                                      <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                          <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block mb-1">1st Cutoff Day</label>
+                                          <select className={inputCls} value={cutoff1} onChange={(e) => setCutoff1(e.target.value)}>
+                                            {Array.from({ length: 31 }, (_, i) => i + 1).map(d => <option key={d} value={d}>{d}</option>)}
+                                          </select>
+                                        </div>
+                                        <div>
+                                          <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block mb-1">1st Pay Day</label>
+                                          <select className={inputCls} value={payday1} onChange={(e) => setPayday1(e.target.value)}>
+                                            {Array.from({ length: 31 }, (_, i) => i + 1).map(d => <option key={d} value={d}>{d}</option>)}
+                                            <option value="0">End of Month</option>
+                                          </select>
+                                        </div>
+                                        <div>
+                                          <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block mb-1">2nd Cutoff Day</label>
+                                          <select className={inputCls} value={cutoff2} onChange={(e) => setCutoff2(e.target.value)}>
+                                            <option value="0">End of Month</option>
+                                            {Array.from({ length: 31 }, (_, i) => i + 1).map(d => <option key={d} value={d}>{d}</option>)}
+                                          </select>
+                                        </div>
+                                        <div>
+                                          <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block mb-1">2nd Pay Day</label>
+                                          <select className={inputCls} value={payday2} onChange={(e) => setPayday2(e.target.value)}>
+                                            {Array.from({ length: 31 }, (_, i) => i + 1).map(d => <option key={d} value={d}>{d}</option>)}
+                                            <option value="0">End of Month</option>
+                                          </select>
+                                        </div>
+                                      </div>
                                     </div>
-                                    <div>
-                                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block mb-1">Even Period Pay (days after cutoff)</label>
-                                      <input type="number" min={0} className={inputCls} value={payrollSecondPayDaysAfter} onChange={(e) => setPayrollSecondPayDaysAfter(e.target.value)} placeholder="2" />
+                                  )}
+
+                                  {payrollCycleType === 'custom' && (
+                                    <div className="space-y-4">
+                                      {/* Period 1 */}
+                                      <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-3">
+                                        <p className="text-xs font-extrabold text-gray-700">1st Pay Period</p>
+                                        <div className="space-y-2">
+                                          <div>
+                                            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block mb-1.5">Starts on day</label>
+                                            <div className="flex items-center gap-2 flex-wrap">
+                                              {daySelect(p1StartDay, setP1StartDay)}
+                                              <span className="text-xs text-gray-500">of the</span>
+                                              {monthSelect(p1StartOffset, setP1StartOffset, [
+                                                { value: '-1', label: 'Previous month' },
+                                                { value: '0', label: 'Current month' },
+                                              ])}
+                                            </div>
+                                          </div>
+                                          <div>
+                                            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block mb-1.5">Ends on day</label>
+                                            <div className="flex items-center gap-2 flex-wrap">
+                                              {daySelect(p1EndDay, setP1EndDay)}
+                                              <span className="text-xs text-gray-500">of the</span>
+                                              {monthSelect(p1EndOffset, setP1EndOffset, [
+                                                { value: '0', label: 'Current month' },
+                                                { value: '1', label: 'Next month' },
+                                              ])}
+                                            </div>
+                                          </div>
+                                          <div>
+                                            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block mb-1.5">Pay date: day</label>
+                                            <div className="flex items-center gap-2 flex-wrap">
+                                              {daySelect(p1PayDay, setP1PayDay)}
+                                              <span className="text-xs text-gray-500">of the</span>
+                                              {monthSelect(p1PayOffset, setP1PayOffset, [
+                                                { value: '0', label: 'Current month' },
+                                                { value: '1', label: 'Next month' },
+                                              ])}
+                                            </div>
+                                          </div>
+                                        </div>
+                                      </div>
+
+                                      {/* Period 2 */}
+                                      <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-3">
+                                        <p className="text-xs font-extrabold text-gray-700">2nd Pay Period</p>
+                                        <p className="text-[10px] text-gray-400">Starts automatically the day after Period 1 ends.</p>
+                                        <div className="space-y-2">
+                                          <div>
+                                            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block mb-1.5">Ends on day</label>
+                                            <div className="flex items-center gap-2 flex-wrap">
+                                              {daySelect(p2EndDay, setP2EndDay)}
+                                              <span className="text-xs text-gray-500">of the</span>
+                                              {monthSelect(p2EndOffset, setP2EndOffset, [
+                                                { value: '0', label: 'Current month' },
+                                                { value: '1', label: 'Next month' },
+                                              ])}
+                                            </div>
+                                          </div>
+                                          <div>
+                                            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block mb-1.5">Pay date: day</label>
+                                            <div className="flex items-center gap-2 flex-wrap">
+                                              {daySelect(p2PayDay, setP2PayDay)}
+                                              <span className="text-xs text-gray-500">of the</span>
+                                              {monthSelect(p2PayOffset, setP2PayOffset, [
+                                                { value: '0', label: 'Current month' },
+                                                { value: '1', label: 'Next month' },
+                                                { value: '2', label: '+2 months' },
+                                              ])}
+                                            </div>
+                                          </div>
+                                        </div>
+                                      </div>
                                     </div>
-                                  </div>
-                                  {payrollAnchorDate && (
-                                    <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3 text-[11px] text-emerald-700 font-medium">
-                                      Next periods: <strong>{payrollAnchorDate}</strong> + every <strong>{payrollPeriodDays} days</strong>, pay <strong>{payrollPayDaysAfter} days</strong> after each cutoff.
+                                  )}
+
+                                  {/* Live preview */}
+                                  {previewP1 && (
+                                    <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3.5 space-y-1.5">
+                                      <p className="text-[10px] font-extrabold text-emerald-700 uppercase tracking-wide">Preview for {format(new Date(), 'MMMM yyyy')}</p>
+                                      <p className="text-xs font-semibold text-emerald-800">1st: {previewP1}</p>
+                                      <p className="text-xs font-semibold text-emerald-800">2nd: {previewP2}</p>
                                     </div>
                                   )}
                                 </div>
-                              )}
-                            </div>
+                              )
+                            })()}
                           </Field>
                         </>
                       )}

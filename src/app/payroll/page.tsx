@@ -6,220 +6,256 @@ import TopBar from '@/components/layout/TopBar'
 import BottomNav from '@/components/layout/BottomNav'
 import { useApp } from '@/context/AppContext'
 import { useAttendance } from '@/hooks/useAttendance'
-import { getAllPayPeriods, detailedEarningsForPeriod, PayPeriod } from '@/lib/payroll'
+import { getPeriodsForMonth, detailedEarningsForPeriod, PayPeriod } from '@/lib/payroll'
 import { getAllPayrollRecords, savePayrollRecord } from '@/lib/firestore'
 import { formatCurrency } from '@/lib/attendance'
 import { PayrollRecord } from '@/types'
-import { format, parseISO, isAfter, isBefore, isToday } from 'date-fns'
+import { format, parseISO, addMonths, subMonths, startOfMonth, isSameMonth } from 'date-fns'
 import {
-  Banknote, ChevronDown, ChevronUp, Download, CheckCircle2,
-  Clock, Calendar, TrendingUp, AlertCircle, FileText, Loader2
+  ChevronLeft, ChevronRight, CheckCircle2, Clock, Download,
+  Banknote, TrendingUp, FileText, Loader2, ChevronDown, ChevronUp,
+  Calendar, AlertCircle,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 
-// ─── Pay slip print ───────────────────────────────────────────────────────────
+// ─── Print pay slip ───────────────────────────────────────────────────────────
 
-function printPaySlip(slip: PaySlipData, currency: string) {
-  const fmt = (n: number) => `${currency}${n.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-  const html = `<!DOCTYPE html><html><head><title>Pay Slip – ${slip.period.label}</title>
+function printPaySlip(slip: SlipData, currency: string, employeeName: string) {
+  const fmt = (n: number) => `${currency}${n.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`
+  const html = `<!DOCTYPE html><html><head><title>Pay Slip</title>
 <style>
-  body{font-family:sans-serif;margin:0;padding:32px;color:#111;font-size:13px;}
-  .header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;padding-bottom:16px;border-bottom:2px solid #10b981;}
-  .brand{font-size:20px;font-weight:800;color:#10b981;}
-  .brand span{display:block;font-size:10px;font-weight:500;color:#888;letter-spacing:2px;text-transform:uppercase;margin-top:2px;}
-  .meta{text-align:right;font-size:11px;color:#555;}
-  .meta strong{display:block;font-size:14px;color:#111;margin-bottom:2px;}
-  h3{font-size:11px;text-transform:uppercase;letter-spacing:1.5px;color:#888;margin:20px 0 8px;}
-  table{width:100%;border-collapse:collapse;}
-  td{padding:7px 0;border-bottom:1px solid #f0f0f0;}
-  td:last-child{text-align:right;font-weight:600;}
-  .total td{border-top:2px solid #111;border-bottom:none;font-weight:800;font-size:15px;padding-top:10px;}
-  .badge{display:inline-block;padding:3px 10px;border-radius:99px;font-size:10px;font-weight:700;background:#d1fae5;color:#065f46;}
-  .footer{margin-top:32px;padding-top:16px;border-top:1px solid #eee;font-size:10px;color:#aaa;text-align:center;}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,sans-serif;padding:40px;color:#111;font-size:13px;max-width:600px;margin:0 auto}
+  .header{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:18px;border-bottom:2px solid #10b981;margin-bottom:24px}
+  .brand{font-size:22px;font-weight:900;color:#10b981;letter-spacing:-0.5px}
+  .brand span{display:block;font-size:9px;font-weight:600;color:#999;letter-spacing:3px;text-transform:uppercase;margin-top:3px}
+  .meta{text-align:right;font-size:11px;color:#666;line-height:1.7}
+  .meta strong{display:block;font-size:15px;color:#111;font-weight:800;margin-bottom:2px}
+  .badge{display:inline-block;padding:2px 10px;border-radius:99px;font-size:9px;font-weight:800;background:#d1fae5;color:#065f46;letter-spacing:.5px;text-transform:uppercase}
+  .section-title{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:2px;color:#aaa;margin:20px 0 10px}
+  .row{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #f5f5f5}
+  .row:last-child{border-bottom:none}
+  .row.bold{font-weight:700;font-size:13px}
+  .row.total{font-weight:900;font-size:16px;padding:12px 0;border-top:2px solid #111;border-bottom:none;margin-top:6px;color:#10b981}
+  .deduct{color:#ef4444}
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:20px 0;padding:16px;background:#f9fafb;border-radius:10px}
+  .stat{text-align:center}
+  .stat-val{font-size:18px;font-weight:900;color:#111}
+  .stat-lbl{font-size:9px;color:#999;margin-top:2px;font-weight:600;text-transform:uppercase}
+  .footer{margin-top:32px;padding-top:14px;border-top:1px solid #eee;font-size:10px;color:#ccc;text-align:center}
 </style></head><body>
 <div class="header">
   <div><div class="brand">ClockIn<span>Pay Slip</span></div></div>
   <div class="meta">
-    <strong>${slip.employeeName}</strong>
-    Period: ${slip.period.label}<br/>
-    Pay Date: ${format(parseISO(slip.period.payDate), 'MMMM d, yyyy')}
-    ${slip.status === 'paid' ? '<br/><span class="badge">✓ Paid</span>' : ''}
+    <strong>${employeeName}</strong>
+    ${slip.period.label}<br>
+    Pay date: ${format(parseISO(slip.period.payDate), 'MMMM d, yyyy')}<br>
+    ${slip.payrollStatus === 'paid' ? '<span class="badge">✓ Paid</span>' : ''}
   </div>
 </div>
-<h3>Earnings</h3>
-<table>
-  <tr><td>Regular Pay (${slip.daysWorked} day${slip.daysWorked !== 1 ? 's' : ''} × ${fmt(slip.regularPay / Math.max(slip.daysWorked, 1))})</td><td>${fmt(slip.regularPay)}</td></tr>
-  ${slip.otHours > 0 ? `<tr><td>Overtime Pay (${slip.otHours.toFixed(1)}h)</td><td>${fmt(slip.otPay)}</td></tr>` : ''}
-  ${slip.holidayPay > 0 ? `<tr><td>Holiday Pay</td><td>${fmt(slip.holidayPay)}</td></tr>` : ''}
-  <tr><td style="font-weight:700">Gross Pay</td><td style="font-weight:700">${fmt(slip.grossPay)}</td></tr>
-</table>
-<h3>Deductions</h3>
-<table>
-  <tr><td>Late Deductions (${slip.lateMinutes} min)</td><td style="color:#ef4444">-${fmt(slip.lateDeductions)}</td></tr>
-  <tr><td style="font-weight:700">Total Deductions</td><td style="font-weight:700;color:#ef4444">-${fmt(slip.lateDeductions)}</td></tr>
-</table>
-<table style="margin-top:16px"><tr class="total"><td>NET PAY</td><td>${fmt(slip.netPay)}</td></tr></table>
-<div class="footer">Generated by ClockIn · ${format(new Date(), 'MMMM d, yyyy h:mm a')}</div>
+<div class="stats">
+  <div class="stat"><div class="stat-val">${slip.daysWorked}</div><div class="stat-lbl">Days</div></div>
+  <div class="stat"><div class="stat-val">${slip.totalHours.toFixed(1)}h</div><div class="stat-lbl">Hours</div></div>
+  <div class="stat"><div class="stat-val">${slip.otHours.toFixed(1)}h</div><div class="stat-lbl">Overtime</div></div>
+  <div class="stat"><div class="stat-val">${slip.lateMinutes}m</div><div class="stat-lbl">Late</div></div>
+</div>
+<div class="section-title">Earnings</div>
+<div class="row"><span>Regular Pay (${slip.daysWorked} days)</span><span>${fmt(slip.regularPay)}</span></div>
+${slip.otHours > 0 ? `<div class="row"><span>Overtime (${slip.otHours.toFixed(1)}h)</span><span>${fmt(slip.otPay)}</span></div>` : ''}
+<div class="row bold"><span>Gross Pay</span><span>${fmt(slip.grossPay)}</span></div>
+${slip.lateDeductions > 0 ? `
+<div class="section-title">Deductions</div>
+<div class="row"><span>Late (${slip.lateMinutes} min)</span><span class="deduct">−${fmt(slip.lateDeductions)}</span></div>
+` : ''}
+<div class="row total"><span>NET PAY</span><span>${fmt(slip.netPay)}</span></div>
+<div class="footer">Generated by ClockIn · ${format(new Date(), 'MMM d, yyyy h:mm a')}</div>
 </body></html>`
-
   const w = window.open('', '_blank')
-  if (!w) { toast.error('Please allow popups to download PDF'); return }
+  if (!w) { toast.error('Allow popups to download the PDF'); return }
   w.document.write(html)
   w.document.close()
-  w.focus()
-  setTimeout(() => { w.print() }, 300)
+  setTimeout(() => { w.focus(); w.print() }, 300)
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-interface PaySlipData {
+interface SlipData {
   period: PayPeriod
-  employeeName: string
-  status: 'pending' | 'paid' | 'in-progress'
+  payrollStatus: 'in-progress' | 'completed' | 'upcoming' | 'paid'
+  paidDate?: string
   daysWorked: number
   totalHours: number
   otHours: number
   lateMinutes: number
   regularPay: number
   otPay: number
-  holidayPay: number
-  lateDeductions: number
   grossPay: number
+  lateDeductions: number
   netPay: number
-  paidDate?: string
 }
 
-// ─── Period Card ──────────────────────────────────────────────────────────────
+// ─── Period card ──────────────────────────────────────────────────────────────
+
+const STATUS_CONFIG = {
+  'in-progress': { label: 'In Progress', dot: 'bg-blue-500', card: 'border-blue-200', badge: 'bg-blue-50 text-blue-600 border border-blue-200' },
+  completed:     { label: 'Pending Pay', dot: 'bg-amber-400', card: 'border-amber-200', badge: 'bg-amber-50 text-amber-600 border border-amber-200' },
+  paid:          { label: 'Paid',        dot: 'bg-emerald-500', card: 'border-emerald-200', badge: 'bg-emerald-50 text-emerald-600 border border-emerald-200' },
+  upcoming:      { label: 'Upcoming',    dot: 'bg-gray-300', card: 'border-gray-100', badge: 'bg-gray-50 text-gray-400 border border-gray-200' },
+}
 
 function PeriodCard({
-  slip, currency, onMarkPaid, marking,
+  slip, nth, currency, employeeName, onMarkPaid, marking,
 }: {
-  slip: PaySlipData
+  slip: SlipData
+  nth: 1 | 2
   currency: string
+  employeeName: string
   onMarkPaid: () => void
   marking: boolean
 }) {
   const [open, setOpen] = useState(false)
+  const sc = STATUS_CONFIG[slip.payrollStatus]
   const today = format(new Date(), 'yyyy-MM-dd')
-  const isInProgress = slip.period.cutoffStart <= today && slip.period.cutoffEnd >= today
-  const isFuture = slip.period.cutoffStart > today
-
-  const statusConfig = {
-    paid:        { label: 'Paid',        cls: 'bg-emerald-50 text-emerald-600 border border-emerald-200' },
-    pending:     { label: 'Pending',     cls: 'bg-amber-50 text-amber-600 border border-amber-200' },
-    'in-progress': { label: 'In Progress', cls: 'bg-blue-50 text-blue-600 border border-blue-200' },
-  }
-  const sc = statusConfig[slip.status]
+  const pdfAvailable = today > slip.period.cutoffEnd
+  const canMarkPaid = slip.payrollStatus === 'completed'
 
   return (
-    <div className={cn('bg-white rounded-2xl border shadow-sm transition-all', open ? 'border-emerald-200' : 'border-gray-100')}>
-      {/* Header row */}
-      <button
-        onClick={() => !isFuture && setOpen((o) => !o)}
-        className={cn('w-full flex items-center gap-3 px-5 py-4 text-left', isFuture ? 'cursor-default opacity-60' : 'cursor-pointer hover:bg-gray-50/50 rounded-2xl')}
-      >
-        <div className={cn('w-10 h-10 rounded-xl flex items-center justify-center shrink-0', slip.status === 'paid' ? 'bg-emerald-100' : isInProgress ? 'bg-blue-100' : 'bg-gray-100')}>
-          {slip.status === 'paid'
-            ? <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-            : isInProgress ? <Clock className="w-5 h-5 text-blue-500" />
-            : <Banknote className="w-5 h-5 text-gray-400" />}
+    <div className={cn('bg-white rounded-2xl border shadow-sm flex flex-col', sc.card)}>
+      {/* Card header */}
+      <div className="px-5 pt-5 pb-4">
+        <div className="flex items-start justify-between gap-2 mb-3">
+          <div>
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{nth === 1 ? '1st Cutoff' : '2nd Cutoff'}</p>
+            <p className="text-base font-extrabold text-gray-900 mt-0.5">{slip.period.label}</p>
+          </div>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <span className={cn('w-1.5 h-1.5 rounded-full', sc.dot)} />
+            <span className={cn('text-[10px] px-2 py-0.5 rounded-full font-bold', sc.badge)}>{sc.label}</span>
+          </div>
         </div>
-        <div className="flex-1 min-w-0">
-          <p className="font-bold text-gray-900 text-sm">{slip.period.label}</p>
-          <p className="text-xs text-gray-400 mt-0.5">Pay date: {format(parseISO(slip.period.payDate), 'MMM d, yyyy')}</p>
-        </div>
-        <div className="text-right mr-3 hidden sm:block">
-          <p className="font-extrabold text-gray-900">{formatCurrency(slip.netPay, currency)}</p>
-          <p className="text-[10px] text-gray-400 mt-0.5">{slip.daysWorked} days worked</p>
-        </div>
-        <span className={cn('text-[10px] px-2.5 py-1 rounded-full font-bold shrink-0 hidden sm:inline', sc.cls)}>{sc.label}</span>
-        {!isFuture && (open ? <ChevronUp className="w-4 h-4 text-gray-400 shrink-0" /> : <ChevronDown className="w-4 h-4 text-gray-400 shrink-0" />)}
-      </button>
 
-      {/* Mobile amount row */}
-      <div className="sm:hidden flex items-center justify-between px-5 pb-3 -mt-1">
-        <span className={cn('text-[10px] px-2.5 py-1 rounded-full font-bold', sc.cls)}>{sc.label}</span>
-        <p className="font-extrabold text-gray-900">{formatCurrency(slip.netPay, currency)}</p>
+        <div className="flex items-end justify-between gap-2">
+          <div>
+            <p className="text-2xl font-black text-gray-900">{formatCurrency(slip.netPay, currency)}</p>
+            <p className="text-[11px] text-gray-400 mt-0.5">
+              Pay date: <span className="font-semibold text-gray-600">{format(parseISO(slip.period.payDate), 'MMM d, yyyy')}</span>
+            </p>
+          </div>
+          {slip.payrollStatus !== 'upcoming' && (
+            <div className="text-right text-[11px] text-gray-400 space-y-0.5">
+              <p><span className="font-semibold text-gray-600">{slip.daysWorked}</span> days</p>
+              <p><span className="font-semibold text-gray-600">{slip.totalHours.toFixed(1)}h</span> worked</p>
+              {slip.otHours > 0 && <p><span className="font-semibold text-orange-500">+{slip.otHours.toFixed(1)}h</span> OT</p>}
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Expanded detail */}
+      {/* Expand toggle */}
+      {slip.payrollStatus !== 'upcoming' && (
+        <button
+          onClick={() => setOpen((o) => !o)}
+          className="flex items-center justify-center gap-1.5 py-2.5 text-xs font-bold text-gray-400 border-t border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer rounded-none"
+        >
+          {open ? <><ChevronUp className="w-3.5 h-3.5" /> Hide Breakdown</> : <><ChevronDown className="w-3.5 h-3.5" /> View Breakdown</>}
+        </button>
+      )}
+
+      {/* Breakdown */}
       {open && (
-        <div className="border-t border-gray-100 px-5 py-5 space-y-5">
-          {/* Stats row */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="px-5 py-4 border-t border-gray-100 space-y-4">
+          {/* Mini stats */}
+          <div className="grid grid-cols-4 gap-2 text-center">
             {[
-              { label: 'Days Worked', value: `${slip.daysWorked}`, sub: 'this period', color: 'text-indigo-600', bg: 'bg-indigo-50' },
-              { label: 'Hours Worked', value: `${slip.totalHours.toFixed(1)}h`, sub: 'total logged', color: 'text-blue-600', bg: 'bg-blue-50' },
-              { label: 'Overtime', value: `${slip.otHours.toFixed(1)}h`, sub: 'extra hours', color: 'text-orange-600', bg: 'bg-orange-50' },
-              { label: 'Late', value: `${slip.lateMinutes}m`, sub: 'total late', color: 'text-amber-600', bg: 'bg-amber-50' },
+              { val: slip.daysWorked, lbl: 'Days' },
+              { val: `${slip.totalHours.toFixed(1)}h`, lbl: 'Hours' },
+              { val: `${slip.otHours.toFixed(1)}h`, lbl: 'OT' },
+              { val: `${slip.lateMinutes}m`, lbl: 'Late' },
             ].map((s) => (
-              <div key={s.label} className={cn('rounded-xl p-3.5', s.bg)}>
-                <p className={cn('text-xl font-extrabold', s.color)}>{s.value}</p>
-                <p className="text-[11px] font-semibold text-gray-600 mt-0.5">{s.label}</p>
-                <p className="text-[10px] text-gray-400">{s.sub}</p>
+              <div key={s.lbl} className="bg-gray-50 rounded-xl py-2.5">
+                <p className="text-sm font-extrabold text-gray-800">{s.val}</p>
+                <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wide mt-0.5">{s.lbl}</p>
               </div>
             ))}
           </div>
 
-          {/* Earnings breakdown */}
-          <div className="bg-gray-50 rounded-xl p-4 space-y-2.5">
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">Earnings Breakdown</p>
-            <div className="space-y-2">
-              {[
-                { label: `Regular Pay (${slip.daysWorked} days)`, value: slip.regularPay, color: 'text-gray-900' },
-                ...(slip.otHours > 0 ? [{ label: `Overtime Pay (${slip.otHours.toFixed(1)}h)`, value: slip.otPay, color: 'text-orange-600' }] : []),
-                ...(slip.holidayPay > 0 ? [{ label: 'Holiday Pay', value: slip.holidayPay, color: 'text-purple-600' }] : []),
-              ].map((row) => (
-                <div key={row.label} className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">{row.label}</span>
-                  <span className={cn('text-sm font-bold', row.color)}>{formatCurrency(row.value, currency)}</span>
-                </div>
-              ))}
-              <div className="flex justify-between items-center pt-2 border-t border-gray-200">
-                <span className="text-sm font-bold text-gray-800">Gross Pay</span>
-                <span className="text-sm font-extrabold text-gray-900">{formatCurrency(slip.grossPay, currency)}</span>
+          {/* Earnings table */}
+          <div className="space-y-1.5 text-sm">
+            <div className="flex justify-between text-gray-600">
+              <span>Regular Pay ({slip.daysWorked} days)</span>
+              <span className="font-semibold">{formatCurrency(slip.regularPay, currency)}</span>
+            </div>
+            {slip.otHours > 0 && (
+              <div className="flex justify-between text-orange-600">
+                <span>Overtime ({slip.otHours.toFixed(1)}h)</span>
+                <span className="font-semibold">+{formatCurrency(slip.otPay, currency)}</span>
               </div>
+            )}
+            <div className="flex justify-between text-gray-800 font-bold pt-1.5 border-t border-dashed border-gray-200">
+              <span>Gross Pay</span>
+              <span>{formatCurrency(slip.grossPay, currency)}</span>
             </div>
             {slip.lateDeductions > 0 && (
-              <div className="flex justify-between items-center pt-2 border-t border-dashed border-gray-200">
-                <span className="text-sm text-red-500">Late Deduction ({slip.lateMinutes} min)</span>
-                <span className="text-sm font-bold text-red-500">-{formatCurrency(slip.lateDeductions, currency)}</span>
+              <div className="flex justify-between text-red-500">
+                <span>Late Deduction ({slip.lateMinutes} min)</span>
+                <span className="font-semibold">−{formatCurrency(slip.lateDeductions, currency)}</span>
               </div>
             )}
-            <div className="flex justify-between items-center pt-3 border-t-2 border-gray-300">
-              <span className="font-extrabold text-gray-900">Net Pay</span>
-              <span className="text-lg font-extrabold text-emerald-600">{formatCurrency(slip.netPay, currency)}</span>
+            <div className="flex justify-between font-extrabold text-emerald-700 text-base pt-2 border-t-2 border-gray-200">
+              <span>Net Pay</span>
+              <span>{formatCurrency(slip.netPay, currency)}</span>
             </div>
-          </div>
-
-          {/* Actions */}
-          <div className="flex items-center gap-3 flex-wrap">
-            <button
-              onClick={() => printPaySlip(slip, currency)}
-              className="flex items-center gap-2 px-4 py-2.5 bg-gray-800 hover:bg-gray-900 text-white text-sm font-bold rounded-xl transition-colors cursor-pointer"
-            >
-              <Download className="w-4 h-4" />
-              Download PDF
-            </button>
-            {slip.status !== 'paid' && slip.status !== 'in-progress' && (
-              <button
-                onClick={onMarkPaid}
-                disabled={marking}
-                className="flex items-center gap-2 px-4 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-bold rounded-xl transition-colors cursor-pointer disabled:opacity-60"
-              >
-                {marking ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-                Mark as Paid
-              </button>
-            )}
-            {slip.status === 'paid' && slip.paidDate && (
-              <p className="text-xs text-emerald-600 font-semibold">
-                Paid on {format(parseISO(slip.paidDate), 'MMM d, yyyy')}
-              </p>
-            )}
           </div>
         </div>
       )}
+
+      {/* Actions */}
+      <div className="px-5 pb-5 mt-auto pt-3 flex items-center gap-2 flex-wrap">
+        {/* Download PDF */}
+        {slip.payrollStatus !== 'upcoming' && (
+          pdfAvailable ? (
+            <button
+              onClick={() => printPaySlip(slip, currency, employeeName)}
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-gray-800 hover:bg-gray-900 text-white text-xs font-bold rounded-lg transition-colors cursor-pointer"
+            >
+              <Download className="w-3.5 h-3.5" />
+              Download PDF
+            </button>
+          ) : (
+            <div className="flex items-center gap-1.5 px-3.5 py-2 bg-gray-100 text-gray-400 text-xs font-bold rounded-lg cursor-not-allowed select-none" title={`Available from ${format(parseISO(slip.period.cutoffEnd), 'MMM d')}`}>
+              <Download className="w-3.5 h-3.5" />
+              PDF after {format(parseISO(slip.period.cutoffEnd), 'MMM d')}
+            </div>
+          )
+        )}
+
+        {/* Mark as paid */}
+        {canMarkPaid && (
+          <button
+            onClick={onMarkPaid}
+            disabled={marking}
+            className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold rounded-lg transition-colors cursor-pointer disabled:opacity-60"
+          >
+            {marking ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+            Mark as Paid
+          </button>
+        )}
+
+        {slip.payrollStatus === 'paid' && slip.paidDate && (
+          <p className="text-[11px] text-emerald-600 font-semibold flex items-center gap-1">
+            <CheckCircle2 className="w-3.5 h-3.5" />
+            Received on {format(parseISO(slip.paidDate), 'MMM d, yyyy')}
+          </p>
+        )}
+
+        {slip.payrollStatus === 'in-progress' && (
+          <p className="text-[11px] text-blue-500 font-semibold flex items-center gap-1">
+            <Clock className="w-3.5 h-3.5" />
+            Period ends {format(parseISO(slip.period.cutoffEnd), 'MMM d')}
+          </p>
+        )}
+      </div>
     </div>
   )
 }
@@ -230,18 +266,40 @@ function PayrollPage() {
   const { user, settings } = useApp()
   const { records, loading: recLoading } = useAttendance(user?.uid ?? null, settings)
   const [payrollRecords, setPayrollRecords] = useState<PayrollRecord[]>([])
-  const [loading, setLoading] = useState(true)
+  const [selectedMonth, setSelectedMonth] = useState(startOfMonth(new Date()))
   const [marking, setMarking] = useState<string | null>(null)
+  const [historyOpen, setHistoryOpen] = useState(false)
 
   useEffect(() => {
     if (!user?.uid) return
-    getAllPayrollRecords(user.uid).then((recs) => {
-      setPayrollRecords(recs)
-      setLoading(false)
-    })
+    getAllPayrollRecords(user.uid).then(setPayrollRecords)
   }, [user?.uid])
 
-  const handleMarkPaid = useCallback(async (slip: PaySlipData) => {
+  const buildSlip = useCallback((period: PayPeriod): SlipData => {
+    const today = format(new Date(), 'yyyy-MM-dd')
+    const saved = payrollRecords.find((r) => r.id === `${period.cutoffStart}_${period.cutoffEnd}`)
+    const { daysWorked, totalHours, otHours, lateMinutes, lateDeductions, grossPay, recs } =
+      detailedEarningsForPeriod(records, period)
+
+    const otPay = recs.reduce((s, r) => {
+      if (!r.otHours || !r.hoursWorked) return s
+      return s + r.dailyEarnings * (r.otHours / r.hoursWorked)
+    }, 0)
+    const regularPay = Math.max(0, grossPay - otPay)
+    const netPay = Math.max(0, grossPay - lateDeductions)
+
+    const isInProgress = period.cutoffStart <= today && period.cutoffEnd >= today
+    const isUpcoming = period.cutoffStart > today
+    const payrollStatus: SlipData['payrollStatus'] =
+      saved?.status === 'paid' ? 'paid'
+        : isInProgress ? 'in-progress'
+        : isUpcoming ? 'upcoming'
+        : 'completed'
+
+    return { period, payrollStatus, paidDate: saved?.paidDate, daysWorked, totalHours, otHours, lateMinutes, regularPay, otPay: Math.max(0, otPay), grossPay, lateDeductions, netPay }
+  }, [records, payrollRecords])
+
+  const handleMarkPaid = useCallback(async (slip: SlipData) => {
     if (!user?.uid) return
     setMarking(slip.period.cutoffStart)
     const rec: PayrollRecord = {
@@ -255,7 +313,7 @@ function PayrollPage() {
       grossPay: slip.grossPay,
       regularPay: slip.regularPay,
       otPay: slip.otPay,
-      holidayPay: slip.holidayPay,
+      holidayPay: 0,
       lateDeductions: slip.lateDeductions,
       netPay: slip.netPay,
       daysWorked: slip.daysWorked,
@@ -272,68 +330,27 @@ function PayrollPage() {
 
   if (!settings) return null
 
-  const today = format(new Date(), 'yyyy-MM-dd')
   const currency = settings.currency ?? '₱'
+  const today = new Date()
+  const [p1, p2] = getPeriodsForMonth(settings, selectedMonth)
+  const slip1 = buildSlip(p1)
+  const slip2 = buildSlip(p2)
 
-  // Generate all periods from earliest record (or 3 months back) to end of next month
-  const earliest = records.length > 0
-    ? parseISO(records[records.length - 1].date)
-    : new Date(new Date().getFullYear(), new Date().getMonth() - 2, 1)
-  const future = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 28)
-  const periods = getAllPayPeriods(settings, earliest, future)
+  const isCurrentMonth = isSameMonth(selectedMonth, today)
+  const isNextMonth = isSameMonth(selectedMonth, addMonths(today, 1))
 
-  // Build pay slips
-  const slips: PaySlipData[] = periods.map((period) => {
-    const saved = payrollRecords.find((r) => r.id === `${period.cutoffStart}_${period.cutoffEnd}`)
-    const { daysWorked, totalHours, otHours, lateMinutes, lateDeductions, grossPay, recs } =
-      detailedEarningsForPeriod(records, period)
+  // Total stats
+  const totalPaid = payrollRecords.filter((r) => r.status === 'paid').reduce((s, r) => s + r.netPay, 0)
 
-    const regularPay = recs.reduce((s, r) => {
-      const ot = r.otHours > 0 ? (r.dailyEarnings * (r.otHours / Math.max(r.hoursWorked, 0.01))) : 0
-      return s + (r.dailyEarnings || 0) - ot
-    }, 0)
-    const otPay = grossPay - regularPay
-    const holidayPay = 0 // could be derived if needed
-    const netPay = Math.max(0, grossPay - lateDeductions)
-
-    const isInProgress = period.cutoffStart <= today && period.cutoffEnd >= today
-    const isFuture = period.cutoffStart > today
-    const status: PaySlipData['status'] = saved?.status === 'paid' ? 'paid'
-      : isInProgress ? 'in-progress'
-      : isFuture ? 'pending'
-      : 'pending'
-
-    return {
-      period,
-      employeeName: settings.name || 'Employee',
-      status,
-      daysWorked,
-      totalHours,
-      otHours,
-      lateMinutes,
-      regularPay: Math.max(0, regularPay),
-      otPay: Math.max(0, otPay),
-      holidayPay,
-      lateDeductions,
-      grossPay,
-      netPay,
-      paidDate: saved?.paidDate,
+  // History: past months (not current, not future)
+  const historyMonths: { label: string; month: Date }[] = []
+  let hm = subMonths(startOfMonth(today), 1)
+  for (let i = 0; i < 24; i++) {
+    if (records.some((r) => r.date.startsWith(format(hm, 'yyyy-MM')))) {
+      historyMonths.push({ label: format(hm, 'MMMM yyyy'), month: hm })
     }
-  }).reverse() // newest first
-
-  // Group by year
-  type Group = { year: number; slips: PaySlipData[] }
-  const grouped: Group[] = []
-  for (const slip of slips) {
-    const y = parseISO(slip.period.cutoffStart).getFullYear()
-    let g = grouped.find((gg) => gg.year === y)
-    if (!g) { g = { year: y, slips: [] }; grouped.push(g) }
-    g.slips.push(slip)
+    hm = subMonths(hm, 1)
   }
-
-  const totalPaid = slips.filter((s) => s.status === 'paid').reduce((sum, s) => sum + s.netPay, 0)
-  const totalPending = slips.filter((s) => s.status === 'pending').reduce((sum, s) => sum + s.netPay, 0)
-  const inProgress = slips.find((s) => s.status === 'in-progress')
 
   return (
     <div className="flex h-screen overflow-hidden bg-gray-50">
@@ -343,81 +360,150 @@ function PayrollPage() {
         <main className="flex-1 overflow-y-auto p-4 lg:p-6 space-y-5 pb-24 lg:pb-6">
 
           {/* Header */}
-          <div>
-            <h2 className="text-xl font-extrabold text-gray-900">Payroll & Pay Slips</h2>
-            <p className="text-sm text-gray-400 mt-0.5">Track your pay periods and download pay slips</p>
-          </div>
-
-          {/* Summary cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center">
-                  <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-                </div>
-                <div>
-                  <p className="text-xs font-semibold text-gray-400">Total Received</p>
-                  <p className="text-xl font-extrabold text-gray-900">{formatCurrency(totalPaid, currency)}</p>
-                </div>
-              </div>
+          <div className="flex items-start justify-between gap-4 flex-wrap">
+            <div>
+              <h2 className="text-xl font-extrabold text-gray-900">Payroll & Pay Slips</h2>
+              <p className="text-sm text-gray-400 mt-0.5">Track your salary by pay period</p>
             </div>
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
-                  <Clock className="w-5 h-5 text-blue-500" />
-                </div>
-                <div>
-                  <p className="text-xs font-semibold text-gray-400">Current Period</p>
-                  <p className="text-xl font-extrabold text-gray-900">
-                    {inProgress ? formatCurrency(inProgress.netPay, currency) : '—'}
-                  </p>
-                </div>
-              </div>
-            </div>
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center">
-                  <Banknote className="w-5 h-5 text-amber-500" />
-                </div>
-                <div>
-                  <p className="text-xs font-semibold text-gray-400">Unpaid Periods</p>
-                  <p className="text-xl font-extrabold text-gray-900">{formatCurrency(totalPending, currency)}</p>
-                </div>
+            <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-4 py-2.5 flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+              <div>
+                <p className="text-[10px] text-gray-400 font-semibold">Total Received</p>
+                <p className="font-extrabold text-gray-900 text-sm">{formatCurrency(totalPaid, currency)}</p>
               </div>
             </div>
           </div>
 
-          {/* Period list */}
-          {(loading || recLoading) ? (
-            <div className="space-y-3">
-              {[...Array(4)].map((_, i) => (
-                <div key={i} className="bg-white rounded-2xl border border-gray-100 h-20 animate-pulse" />
-              ))}
+          {/* Month navigator */}
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
+            <div className="flex items-center gap-3 px-4 py-3.5">
+              <button
+                onClick={() => setSelectedMonth((m) => subMonths(m, 1))}
+                className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-50 transition-colors cursor-pointer"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <div className="flex-1 text-center">
+                <p className="font-extrabold text-gray-900 text-base">
+                  {format(selectedMonth, 'MMMM yyyy')}
+                </p>
+                {isCurrentMonth && (
+                  <p className="text-[10px] text-emerald-600 font-bold uppercase tracking-wide">Current Month</p>
+                )}
+                {isNextMonth && (
+                  <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wide">Next Month</p>
+                )}
+              </div>
+              <button
+                onClick={() => setSelectedMonth((m) => addMonths(m, 1))}
+                className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-50 transition-colors cursor-pointer"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
             </div>
-          ) : grouped.length === 0 ? (
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm py-20 flex flex-col items-center gap-3">
+          </div>
+
+          {/* Period cards */}
+          {recLoading ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {[1, 2].map((i) => <div key={i} className="bg-white rounded-2xl border border-gray-100 h-52 animate-pulse" />)}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <PeriodCard
+                slip={slip1} nth={1} currency={currency}
+                employeeName={settings.name || 'Employee'}
+                marking={marking === slip1.period.cutoffStart}
+                onMarkPaid={() => handleMarkPaid(slip1)}
+              />
+              <PeriodCard
+                slip={slip2} nth={2} currency={currency}
+                employeeName={settings.name || 'Employee'}
+                marking={marking === slip2.period.cutoffStart}
+                onMarkPaid={() => handleMarkPaid(slip2)}
+              />
+            </div>
+          )}
+
+          {/* History accordion */}
+          {historyMonths.length > 0 && (
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+              <button
+                onClick={() => setHistoryOpen((o) => !o)}
+                className="w-full flex items-center justify-between px-5 py-4 cursor-pointer hover:bg-gray-50 transition-colors"
+              >
+                <div className="flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-gray-400" />
+                  <span className="font-bold text-gray-800 text-sm">Previous Months</span>
+                  <span className="text-[10px] px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full font-bold">{historyMonths.length}</span>
+                </div>
+                {historyOpen ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
+              </button>
+
+              {historyOpen && (
+                <div className="border-t border-gray-100">
+                  {historyMonths.map(({ label, month }) => {
+                    const [hp1, hp2] = getPeriodsForMonth(settings, month)
+                    const hs1 = buildSlip(hp1)
+                    const hs2 = buildSlip(hp2)
+                    return (
+                      <div key={label} className="border-b border-gray-50 last:border-0">
+                        <p className="px-5 pt-3 pb-1 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{label}</p>
+                        {[hs1, hs2].map((hs, i) => (
+                          <div key={i} className="flex items-center gap-3 px-5 py-3 hover:bg-gray-50/60 transition-colors">
+                            <div className={cn('w-2 h-2 rounded-full shrink-0', STATUS_CONFIG[hs.payrollStatus].dot)} />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-bold text-gray-800">{hs.period.label}</p>
+                              <p className="text-[10px] text-gray-400">Pay {format(parseISO(hs.period.payDate), 'MMM d')}</p>
+                            </div>
+                            <span className={cn('text-[10px] px-2 py-0.5 rounded-full font-bold hidden sm:inline', STATUS_CONFIG[hs.payrollStatus].badge)}>
+                              {STATUS_CONFIG[hs.payrollStatus].label}
+                            </span>
+                            <p className="font-extrabold text-gray-900 text-sm shrink-0">{formatCurrency(hs.netPay, currency)}</p>
+                            <div className="flex gap-1.5 shrink-0">
+                              {hs.payrollStatus === 'completed' && (
+                                <button
+                                  onClick={() => handleMarkPaid(hs)}
+                                  disabled={marking === hs.period.cutoffStart}
+                                  className="w-7 h-7 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white flex items-center justify-center cursor-pointer disabled:opacity-50 transition-colors"
+                                  title="Mark as Paid"
+                                >
+                                  {marking === hs.period.cutoffStart ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                                </button>
+                              )}
+                              <button
+                                onClick={() => printPaySlip(hs, currency, settings.name || 'Employee')}
+                                className={cn('w-7 h-7 rounded-lg flex items-center justify-center cursor-pointer transition-colors',
+                                  format(new Date(), 'yyyy-MM-dd') > hs.period.cutoffEnd
+                                    ? 'bg-gray-800 hover:bg-gray-900 text-white'
+                                    : 'bg-gray-100 text-gray-300 cursor-not-allowed')}
+                                disabled={format(new Date(), 'yyyy-MM-dd') <= hs.period.cutoffEnd}
+                                title="Download PDF"
+                              >
+                                <Download className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Empty state */}
+          {!recLoading && records.length === 0 && (
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm py-16 flex flex-col items-center gap-3">
               <div className="w-14 h-14 bg-gray-100 rounded-2xl flex items-center justify-center">
                 <FileText className="w-6 h-6 text-gray-400" />
               </div>
-              <p className="font-bold text-gray-600">No pay periods yet</p>
-              <p className="text-sm text-gray-400">Start clocking in to generate pay slip records</p>
+              <p className="font-bold text-gray-600">No records yet</p>
+              <p className="text-sm text-gray-400">Start clocking in to see your pay slips here</p>
             </div>
-          ) : (
-            grouped.map(({ year, slips: yearSlips }) => (
-              <div key={year} className="space-y-3">
-                <p className="text-xs font-bold text-gray-400 uppercase tracking-widest px-1">{year}</p>
-                {yearSlips.map((slip) => (
-                  <PeriodCard
-                    key={slip.period.cutoffStart}
-                    slip={slip}
-                    currency={currency}
-                    marking={marking === slip.period.cutoffStart}
-                    onMarkPaid={() => handleMarkPaid(slip)}
-                  />
-                ))}
-              </div>
-            ))
           )}
+
         </main>
       </div>
       <BottomNav />

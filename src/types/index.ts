@@ -21,10 +21,18 @@ export interface UserSettings {
   payrollSecondPayday: number // e.g. 10 (of next month)
   // Flexible payroll cycle
   payrollCycleType?: 'semi-monthly' | 'custom'
-  payrollAnchorDate?: string  // yyyy-MM-dd – known period start date (for custom cycle)
-  payrollPeriodDays?: number  // days per period (e.g. 15)
-  payrollPayDaysAfterCutoff?: number        // pay N days after period-1 end
-  payrollSecondPayDaysAfterCutoff?: number  // pay N days after period-2 end
+  // Custom cycle – Period 1 (all offsets: -1=prev month, 0=current, 1=next)
+  payrollP1StartDay?: number
+  payrollP1StartOffset?: number   // typically -1 (previous month)
+  payrollP1EndDay?: number
+  payrollP1EndOffset?: number     // typically 0 (current month)
+  payrollP1PayDay?: number
+  payrollP1PayOffset?: number     // typically 0 (current month)
+  // Custom cycle – Period 2 (start is auto = P1 end + 1 day)
+  payrollP2EndDay?: number
+  payrollP2EndOffset?: number     // typically 0 (current month)
+  payrollP2PayDay?: number
+  payrollP2PayOffset?: number     // typically 1 (next month)
   currency?: string           // e.g. "₱"
   otType: 'paid' | 'offset'
   offsetBalance: number       // in hours
