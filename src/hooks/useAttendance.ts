@@ -27,9 +27,10 @@ export function useAttendance(uid: string | null, settings: UserSettings | null,
       const recomputed = raw.map((r) => {
         const holiday = r.isHoliday || isHoliday(r.date, settings)
         if (!r.timeIn) {
-          const status: AttendanceRecord['status'] = r.isRestDay ? 'rest-day' : (holiday ? 'holiday' : 'absent')
-          // Non-working holiday still earns 1× regular daily pay
-          const dailyEarnings = holiday && !r.isRestDay ? settings.rateAmount : 0
+          // Holiday takes priority over rest day for both status and earnings
+          const status: AttendanceRecord['status'] = holiday ? 'holiday' : (r.isRestDay ? 'rest-day' : 'absent')
+          // Non-working holiday earns 1× regular daily pay even if it falls on a rest day
+          const dailyEarnings = holiday ? settings.rateAmount : 0
           return { ...r, status, isHoliday: holiday, dailyEarnings }
         }
         const computed = computeRecord(r.timeIn, r.timeOut ?? null, settings, holiday, r.offsetUsed || 0)
@@ -96,8 +97,8 @@ export function useAttendance(uid: string | null, settings: UserSettings | null,
 
     const computed = timeInVal ? computeRecord(timeInVal, timeOutVal, settings, holiday, offsetUsedVal) : {
       isOT: false, lateMinutes: 0, otHours: 0, hoursWorked: 0, offsetUsed: offsetUsedVal, lateDeduction: 0,
-      // Non-working holiday still earns 1× regular daily pay
-      dailyEarnings: holiday && !isRestDayVal ? settings.rateAmount : 0,
+      // Holiday earns 1× regular daily pay even when it falls on a rest day
+      dailyEarnings: holiday ? settings.rateAmount : 0,
     }
     
     // Update Offset Balance if applicable

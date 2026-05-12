@@ -24,10 +24,11 @@ type DayVariant = 'rest' | 'holiday' | 'future' | 'absent' | 'ot' | 'late' | 'pr
 function getDayVariant(date: Date, recordMap: Record<string, AttendanceRecord>, settings: UserSettings): DayVariant {
   const dateStr = format(date, 'yyyy-MM-dd')
   const record = recordMap[dateStr]
-  if (record?.isRestDay) return 'rest'
-  if (isRestDay(dateStr, settings)) return 'rest'
+  // Holiday takes priority over rest day — a rest day marked as holiday should show purple
   if (record?.isHoliday) return 'holiday'
   if (isHoliday(dateStr, settings)) return 'holiday'
+  if (record?.isRestDay) return 'rest'
+  if (isRestDay(dateStr, settings)) return 'rest'
   if (isFuture(date) && !isToday(date)) return 'future'
   if (!record || !record.timeIn) return isToday(date) ? 'today-empty' : 'absent'
   if (record.isOT) return 'ot'
