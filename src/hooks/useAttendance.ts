@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { getAllRecords, saveRecord, updateRecord } from '@/lib/firestore'
+import { getAllRecords, saveRecord, updateRecord, deleteRecord as deleteFirestoreRecord } from '@/lib/firestore'
 import { AttendanceRecord, UserSettings } from '@/types'
 import { computeRecord } from '@/lib/salary'
 import { getTodayString, getCurrentTime, isHoliday } from '@/lib/attendance'
@@ -121,5 +121,11 @@ export function useAttendance(uid: string | null, settings: UserSettings | null,
     setRecords((prev) => [record, ...prev.filter((r) => r.id !== date)])
   }
 
-  return { records, loading, todayRecord, timeIn, timeOut, addNote, saveRecordForDate }
+  async function deleteRecordForDate(date: string) {
+    if (!uid) return
+    await deleteFirestoreRecord(uid, date)
+    setRecords((prev) => prev.filter((r) => r.id !== date))
+  }
+
+  return { records, loading, todayRecord, timeIn, timeOut, addNote, saveRecordForDate, deleteRecordForDate }
 }

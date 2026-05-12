@@ -15,7 +15,7 @@ function Dashboard() {
   const { user, settings, authLoading, settingsLoading, updateSettings } = useApp()
   const {
     records, loading, todayRecord,
-    timeIn, timeOut, addNote, saveRecordForDate
+    timeIn, timeOut, addNote, saveRecordForDate, deleteRecordForDate
   } = useAttendance(user?.uid ?? null, settings, updateSettings)
 
   const today = new Date().toISOString().slice(0, 10)
@@ -59,7 +59,7 @@ function Dashboard() {
             {/* Calendar + Time panel */}
             <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 lg:gap-5">
               <div className="lg:col-span-3">
-                <AttendanceCalendar records={records} settings={settings} onSaveRecord={saveRecordForDate} />
+                <AttendanceCalendar records={records} settings={settings} onSaveRecord={saveRecordForDate} onDeleteRecord={deleteRecordForDate} />
               </div>
               <div className="lg:col-span-2">
                 <TimeInOutPanel

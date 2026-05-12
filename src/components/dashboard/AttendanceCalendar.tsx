@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { ChevronLeft, ChevronRight, Info, Pencil, LogIn, LogOut, UserX } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Info, Pencil, LogIn, LogOut, UserX, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { AttendanceRecord, UserSettings } from '@/types'
 import { formatTime, formatCurrency, isRestDay, isHoliday, formatDuration } from '@/lib/attendance'
@@ -14,6 +14,7 @@ interface Props {
   records: AttendanceRecord[]
   settings: UserSettings
   onSaveRecord: (date: string, timeIn: string | null, timeOut: string | null, notes: string, isRestDay?: boolean, offsetUsed?: number, isHolidayOverride?: boolean) => Promise<void>
+  onDeleteRecord: (date: string) => Promise<void>
 }
 
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -25,6 +26,7 @@ function getDayVariant(date: Date, recordMap: Record<string, AttendanceRecord>, 
   const record = recordMap[dateStr]
   if (record?.isRestDay) return 'rest'
   if (isRestDay(dateStr, settings)) return 'rest'
+  if (record?.isHoliday) return 'holiday'
   if (isHoliday(dateStr, settings)) return 'holiday'
   if (isFuture(date) && !isToday(date)) return 'future'
   if (!record || !record.timeIn) return isToday(date) ? 'today-empty' : 'absent'
@@ -35,7 +37,7 @@ function getDayVariant(date: Date, recordMap: Record<string, AttendanceRecord>, 
 
 const CELL_STYLES: Record<DayVariant, string> = {
   rest:          'text-gray-600 bg-gray-200/60',
-  holiday:       'text-purple-600 bg-purple-50',
+  holiday:       'text-purple-700 bg-purple-100 font-extrabold',
   future:        'text-gray-300',
   absent:        'text-rose-500 bg-rose-50/40',
   'today-empty': 'text-gray-800 bg-white ring-2 ring-emerald-500 ring-offset-1',
@@ -63,13 +65,16 @@ interface EditState {
   dayType: DayType
   offsetUsed: number
   existing: AttendanceRecord | null
+  workedOnHoliday: boolean
 }
 
-export default function AttendanceCalendar({ records, settings, onSaveRecord }: Props) {
+export default function AttendanceCalendar({ records, settings, onSaveRecord, onDeleteRecord }: Props) {
   const [current, setCurrent] = useState(new Date())
   const [viewRecord, setViewRecord] = useState<AttendanceRecord | null>(null)
   const [editState, setEditState] = useState<EditState | null>(null)
   const [saving, setSaving] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
 
   const monthStart = startOfMonth(current)
   const days = eachDayOfInterval({ start: monthStart, end: endOfMonth(current) })
@@ -78,15 +83,12 @@ export default function AttendanceCalendar({ records, settings, onSaveRecord }: 
 
   function openDay(date: Date) {
     const dateStr = format(date, 'yyyy-MM-dd')
-    // Don't allow editing future dates
     if (isFuture(date) && !isToday(date)) return
     const existing = recordMap[dateStr] ?? null
 
     if (existing) {
-      // Show detail view with edit option
       setViewRecord(existing)
     } else {
-      // Open edit modal for blank day (absent/today)
       const variant = getDayVariant(date, recordMap, settings)
       setEditState({
         date: dateStr,
@@ -96,12 +98,14 @@ export default function AttendanceCalendar({ records, settings, onSaveRecord }: 
         dayType: variant === 'rest' ? 'rest' : 'normal',
         offsetUsed: 0,
         existing: null,
+        workedOnHoliday: false,
       })
     }
   }
 
   function openEdit(record: AttendanceRecord) {
     setViewRecord(null)
+    setConfirmDelete(false)
     const dayType: DayType = record.isRestDay ? 'rest'
       : record.isHoliday ? 'holiday'
       : (!record.timeIn ? 'absent' : 'normal')
@@ -113,24 +117,35 @@ export default function AttendanceCalendar({ records, settings, onSaveRecord }: 
       dayType,
       offsetUsed: record.offsetUsed ?? 0,
       existing: record,
+      workedOnHoliday: record.isHoliday && !!record.timeIn,
     })
+  }
+
+  async function handleDelete(date: string) {
+    setDeleting(true)
+    await onDeleteRecord(date)
+    setDeleting(false)
+    setViewRecord(null)
+    setEditState(null)
+    setConfirmDelete(false)
+    toast.success('Record deleted')
   }
 
   async function handleSave() {
     if (!editState) return
     setSaving(true)
-    const isRestDay  = editState.dayType === 'rest'
-    const isAbsent   = editState.dayType === 'absent'
-    const isHoliday  = editState.dayType === 'holiday'
-    const noWork     = isRestDay || isAbsent || (isHoliday && !editState.timeIn)
+    const isRestDayVal = editState.dayType === 'rest'
+    const isAbsent    = editState.dayType === 'absent'
+    const isHolidayVal = editState.dayType === 'holiday'
+    const noWork = isRestDayVal || isAbsent || (isHolidayVal && !editState.workedOnHoliday)
     await onSaveRecord(
       editState.date,
       noWork ? null : editState.timeIn,
       noWork ? null : (editState.timeOut || null),
       editState.notes,
-      isRestDay,
+      isRestDayVal,
       editState.offsetUsed,
-      isHoliday ? true : (isRestDay ? false : undefined),
+      isHolidayVal ? true : (isRestDayVal ? false : undefined),
     )
     setSaving(false)
     setEditState(null)
@@ -201,6 +216,7 @@ export default function AttendanceCalendar({ records, settings, onSaveRecord }: 
                 `}
               >
                 {format(date, 'd')}
+                {variant === 'holiday' && <span className="absolute top-0.5 right-0.5 text-[7px]">🎉</span>}
               </button>
             )
           })}
@@ -212,7 +228,7 @@ export default function AttendanceCalendar({ records, settings, onSaveRecord }: 
       </div>
 
       {/* ── View detail modal ── */}
-      <Dialog open={!!viewRecord} onOpenChange={() => setViewRecord(null)}>
+      <Dialog open={!!viewRecord} onOpenChange={() => { setViewRecord(null); setConfirmDelete(false) }}>
         {viewRecord && (
           <DialogContent className="max-w-sm rounded-2xl border-0 shadow-2xl">
             <DialogHeader>
@@ -283,19 +299,40 @@ export default function AttendanceCalendar({ records, settings, onSaveRecord }: 
                 </div>
               )}
 
-              <button
-                onClick={() => openEdit(viewRecord)}
-                className="w-full flex items-center justify-center gap-2 bg-gray-900 hover:bg-gray-800 text-white font-bold py-2.5 rounded-xl text-sm transition-colors cursor-pointer"
-              >
-                <Pencil className="w-3.5 h-3.5" /> Edit this record
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => openEdit(viewRecord)}
+                  className="flex-1 flex items-center justify-center gap-2 bg-gray-900 hover:bg-gray-800 text-white font-bold py-2.5 rounded-xl text-sm transition-colors cursor-pointer"
+                >
+                  <Pencil className="w-3.5 h-3.5" /> Edit Record
+                </button>
+                {!confirmDelete ? (
+                  <button
+                    onClick={() => setConfirmDelete(true)}
+                    className="flex items-center justify-center gap-1.5 bg-white hover:bg-rose-50 text-rose-500 font-bold py-2.5 px-3.5 rounded-xl text-sm border border-rose-200 hover:border-rose-300 transition-colors cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => handleDelete(viewRecord.date)}
+                    disabled={deleting}
+                    className="flex items-center justify-center gap-1.5 bg-rose-500 hover:bg-rose-600 disabled:opacity-60 text-white font-bold py-2.5 px-3.5 rounded-xl text-sm transition-colors cursor-pointer"
+                  >
+                    {deleting ? <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" /> : 'Confirm Delete'}
+                  </button>
+                )}
+              </div>
+              {confirmDelete && (
+                <p className="text-[11px] text-rose-400 text-center -mt-1">This will permanently remove the record. Click again to confirm.</p>
+              )}
             </div>
           </DialogContent>
         )}
       </Dialog>
 
       {/* ── Add / Edit record modal ── */}
-      <Dialog open={!!editState} onOpenChange={() => setEditState(null)}>
+      <Dialog open={!!editState} onOpenChange={() => { setEditState(null); setConfirmDelete(false) }}>
         {editState && (
           <DialogContent className="max-w-sm rounded-2xl border-0 shadow-2xl">
             <DialogHeader>
@@ -309,17 +346,17 @@ export default function AttendanceCalendar({ records, settings, onSaveRecord }: 
               {/* Day type selector */}
               <div>
                 <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-2">Day Type</p>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-4 gap-2">
                   {([
-                    { type: 'normal',  label: 'Normal',   desc: 'Clock in/out',    color: 'emerald' },
-                    { type: 'holiday', label: 'Holiday',  desc: 'Holiday pay',     color: 'purple' },
-                    { type: 'rest',    label: 'Rest Day', desc: 'Day off',         color: 'gray' },
-                    { type: 'absent',  label: 'Absent',   desc: 'Did not come',    color: 'rose' },
-                  ] as { type: DayType; label: string; desc: string; color: string }[]).map(({ type, label, desc, color }) => (
+                    { type: 'normal',  label: 'Normal',   color: 'emerald' },
+                    { type: 'holiday', label: 'Holiday',  color: 'purple' },
+                    { type: 'rest',    label: 'Rest Day', color: 'gray' },
+                    { type: 'absent',  label: 'Absent',   color: 'rose' },
+                  ] as { type: DayType; label: string; color: string }[]).map(({ type, label, color }) => (
                     <button
                       key={type}
                       type="button"
-                      onClick={() => setEditState(s => s && ({ ...s, dayType: type }))}
+                      onClick={() => setEditState(s => s && ({ ...s, dayType: type, workedOnHoliday: false }))}
                       className={`flex flex-col items-center py-2.5 px-1 rounded-xl border-2 transition-all cursor-pointer text-center ${
                         editState.dayType === type
                           ? color === 'emerald' ? 'border-emerald-500 bg-emerald-50'
@@ -337,11 +374,95 @@ export default function AttendanceCalendar({ records, settings, onSaveRecord }: 
                             : 'text-gray-700'
                           : 'text-gray-500'
                       }`}>{label}</p>
-                      <p className="text-[9px] text-gray-400 mt-0.5">{desc}</p>
                     </button>
                   ))}
                 </div>
               </div>
+
+              {/* Normal work day */}
+              {editState.dayType === 'normal' && (
+                <>
+                  <div className="space-y-1.5">
+                    <label className="flex items-center gap-1.5 text-xs font-bold text-gray-600 uppercase tracking-wide">
+                      <LogIn className="w-3.5 h-3.5 text-emerald-500" /> Time In
+                    </label>
+                    <input
+                      type="time"
+                      value={editState.timeIn}
+                      onChange={(e) => setEditState((s) => s && ({ ...s, timeIn: e.target.value }))}
+                      className="w-full px-3.5 py-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-sm font-semibold text-gray-800 focus:outline-none focus:ring-2 focus:ring-emerald-400/30 cursor-pointer"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="flex items-center gap-1.5 text-xs font-bold text-gray-600 uppercase tracking-wide">
+                      <LogOut className="w-3.5 h-3.5 text-red-500" /> Time Out
+                      <span className="text-gray-400 font-normal normal-case tracking-normal">(optional)</span>
+                    </label>
+                    <input
+                      type="time"
+                      value={editState.timeOut}
+                      onChange={(e) => setEditState((s) => s && ({ ...s, timeOut: e.target.value }))}
+                      className="w-full px-3.5 py-2.5 bg-red-50 border border-red-200 rounded-xl text-sm font-semibold text-gray-800 focus:outline-none focus:ring-2 focus:ring-red-400/30 cursor-pointer"
+                    />
+                  </div>
+                </>
+              )}
+
+              {/* Holiday */}
+              {editState.dayType === 'holiday' && (
+                <div className="space-y-3">
+                  <div className="bg-purple-50 border border-purple-100 rounded-xl p-3 flex items-start gap-2">
+                    <span className="text-base mt-0.5">🎉</span>
+                    <p className="text-xs text-purple-700 font-medium">Holiday — {settings.holidayMultiplier}× pay applies if you worked this day.</p>
+                  </div>
+                  {/* Toggle: did you go to work? */}
+                  <button
+                    type="button"
+                    onClick={() => setEditState(s => s && ({ ...s, workedOnHoliday: !s.workedOnHoliday }))}
+                    className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border-2 transition-all cursor-pointer ${
+                      editState.workedOnHoliday
+                        ? 'border-purple-400 bg-purple-50'
+                        : 'border-gray-200 bg-white hover:border-gray-300'
+                    }`}
+                  >
+                    <span className={`text-sm font-bold ${editState.workedOnHoliday ? 'text-purple-700' : 'text-gray-500'}`}>
+                      I went to work this holiday
+                    </span>
+                    <span className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${
+                      editState.workedOnHoliday ? 'border-purple-500 bg-purple-500' : 'border-gray-300'
+                    }`}>
+                      {editState.workedOnHoliday && <span className="w-2 h-2 rounded-full bg-white block" />}
+                    </span>
+                  </button>
+                  {editState.workedOnHoliday && (
+                    <>
+                      <div className="space-y-1.5">
+                        <label className="flex items-center gap-1.5 text-xs font-bold text-gray-600 uppercase tracking-wide">
+                          <LogIn className="w-3.5 h-3.5 text-emerald-500" /> Time In
+                        </label>
+                        <input
+                          type="time"
+                          value={editState.timeIn}
+                          onChange={(e) => setEditState((s) => s && ({ ...s, timeIn: e.target.value }))}
+                          className="w-full px-3.5 py-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-sm font-semibold text-gray-800 focus:outline-none focus:ring-2 focus:ring-emerald-400/30 cursor-pointer"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="flex items-center gap-1.5 text-xs font-bold text-gray-600 uppercase tracking-wide">
+                          <LogOut className="w-3.5 h-3.5 text-red-500" /> Time Out
+                          <span className="text-gray-400 font-normal normal-case tracking-normal">(optional)</span>
+                        </label>
+                        <input
+                          type="time"
+                          value={editState.timeOut}
+                          onChange={(e) => setEditState((s) => s && ({ ...s, timeOut: e.target.value }))}
+                          className="w-full px-3.5 py-2.5 bg-red-50 border border-red-200 rounded-xl text-sm font-semibold text-gray-800 focus:outline-none focus:ring-2 focus:ring-red-400/30 cursor-pointer"
+                        />
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
 
               {editState.dayType === 'absent' && (
                 <div className="bg-rose-50 border border-rose-100 rounded-xl p-3 flex items-center gap-2.5">
@@ -357,50 +478,8 @@ export default function AttendanceCalendar({ records, settings, onSaveRecord }: 
                 </div>
               )}
 
-              {editState.dayType === 'holiday' && (
-                <div className="bg-purple-50 border border-purple-100 rounded-xl p-3 space-y-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-base">🎉</span>
-                    <p className="text-xs text-purple-700 font-bold">Holiday — {settings.holidayMultiplier}× pay applies if you worked</p>
-                  </div>
-                  <p className="text-[11px] text-purple-500">If you worked this day, enter your time in/out below and holiday pay will be computed automatically. Leave blank if you didn&apos;t work.</p>
-                </div>
-              )}
-
-              {(editState.dayType === 'normal' || editState.dayType === 'holiday') && (
-                <>
-                  {/* Time In */}
-                  <div className="space-y-1.5">
-                    <label className="flex items-center gap-1.5 text-xs font-bold text-gray-600 uppercase tracking-wide">
-                      <LogIn className="w-3.5 h-3.5 text-emerald-500" /> Time In
-                    </label>
-                    <input
-                      type="time"
-                      value={editState.timeIn}
-                      onChange={(e) => setEditState((s) => s && ({ ...s, timeIn: e.target.value }))}
-                      className="w-full px-3.5 py-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-sm font-semibold text-gray-800 focus:outline-none focus:ring-2 focus:ring-emerald-400/30 cursor-pointer"
-                    />
-                  </div>
-
-                  {/* Time Out */}
-                  <div className="space-y-1.5">
-                    <label className="flex items-center gap-1.5 text-xs font-bold text-gray-600 uppercase tracking-wide">
-                      <LogOut className="w-3.5 h-3.5 text-red-500" /> Time Out
-                      <span className="text-gray-400 font-normal normal-case tracking-normal">(optional)</span>
-                    </label>
-                    <input
-                      type="time"
-                      value={editState.timeOut}
-                      onChange={(e) => setEditState((s) => s && ({ ...s, timeOut: e.target.value }))}
-                      className="w-full px-3.5 py-2.5 bg-red-50 border border-red-200 rounded-xl text-sm font-semibold text-gray-800 focus:outline-none focus:ring-2 focus:ring-red-400/30 cursor-pointer"
-                    />
-                    <p className="text-[11px] text-gray-400">Leave blank if you haven&apos;t clocked out yet.</p>
-                  </div>
-                </>
-              )}
-
               {/* Offset Usage */}
-              {settings.otType === 'offset' && (editState.dayType === 'normal' || editState.dayType === 'holiday') && (
+              {settings.otType === 'offset' && (editState.dayType === 'normal' || (editState.dayType === 'holiday' && editState.workedOnHoliday)) && (
                 <div className="bg-purple-50 p-4 rounded-xl border border-purple-100 space-y-2">
                   <div className="flex items-center justify-between">
                     <div>
@@ -408,8 +487,8 @@ export default function AttendanceCalendar({ records, settings, onSaveRecord }: 
                       <p className="text-[9px] text-purple-400">Available: {formatDuration(settings.offsetBalance || 0)}</p>
                     </div>
                     <div className="flex items-center gap-2">
-                       <input 
-                         type="number" 
+                       <input
+                         type="number"
                          step="5"
                          min="0"
                          max={Math.round(((settings.offsetBalance || 0) + (editState.existing?.offsetUsed || 0)) * 60)}
@@ -420,9 +499,6 @@ export default function AttendanceCalendar({ records, settings, onSaveRecord }: 
                        <span className="text-xs font-bold text-purple-600">minutes</span>
                     </div>
                   </div>
-                  <p className="text-[9px] text-purple-400 leading-tight italic">
-                    * Using offset adds hours to your daily total without working.
-                  </p>
                 </div>
               )}
 
@@ -437,9 +513,27 @@ export default function AttendanceCalendar({ records, settings, onSaveRecord }: 
                 />
               </div>
 
-              <div className="flex gap-3 pt-1">
+              <div className="flex gap-2 pt-1">
+                {editState.existing && (
+                  !confirmDelete ? (
+                    <button
+                      onClick={() => setConfirmDelete(true)}
+                      className="flex items-center justify-center gap-1.5 bg-white hover:bg-rose-50 text-rose-500 font-bold py-2.5 px-3.5 rounded-xl text-sm border border-rose-200 hover:border-rose-300 transition-colors cursor-pointer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => handleDelete(editState.date)}
+                      disabled={deleting}
+                      className="flex items-center justify-center gap-1.5 bg-rose-500 hover:bg-rose-600 disabled:opacity-60 text-white font-bold py-2.5 px-3 rounded-xl text-xs transition-colors cursor-pointer"
+                    >
+                      {deleting ? <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" /> : 'Confirm Delete'}
+                    </button>
+                  )
+                )}
                 <button
-                  onClick={() => setEditState(null)}
+                  onClick={() => { setEditState(null); setConfirmDelete(false) }}
                   className="flex-1 py-2.5 border border-gray-200 text-gray-600 font-bold text-sm rounded-xl hover:bg-gray-50 transition-colors cursor-pointer"
                 >
                   Cancel
@@ -455,6 +549,9 @@ export default function AttendanceCalendar({ records, settings, onSaveRecord }: 
                   }
                 </button>
               </div>
+              {confirmDelete && (
+                <p className="text-[11px] text-rose-400 text-center -mt-2">Tap Confirm Delete to permanently remove this record.</p>
+              )}
             </div>
           </DialogContent>
         )}
