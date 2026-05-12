@@ -13,9 +13,11 @@ interface Props {
 }
 
 const STATUS: Record<string, { label: string; cls: string }> = {
-  'on-time': { label: 'On Time',  cls: 'bg-emerald-50 text-emerald-600 border border-emerald-100' },
-  late:      { label: 'Late',     cls: 'bg-amber-50 text-amber-600 border border-amber-100' },
-  absent:    { label: 'Absent',   cls: 'bg-red-50 text-red-500 border border-red-100' },
+  'on-time':  { label: 'On Time',   cls: 'bg-emerald-50 text-emerald-600 border border-emerald-100' },
+  late:       { label: 'Late',      cls: 'bg-amber-50 text-amber-600 border border-amber-100' },
+  absent:     { label: 'Absent',    cls: 'bg-red-50 text-red-500 border border-red-100' },
+  'rest-day': { label: 'Rest Day',  cls: 'bg-gray-100 text-gray-500 border border-gray-200' },
+  holiday:    { label: 'Holiday',   cls: 'bg-purple-50 text-purple-600 border border-purple-100' },
 }
 
 const PAGE_SIZE = 3
@@ -63,14 +65,18 @@ export default function RecentActivity({ records, settings }: Props) {
 
           <div className="divide-y divide-gray-50">
             {paged.map((r) => {
-              const s = STATUS[r.status] ?? STATUS['on-time']
+              const statusKey = r.isHoliday && !r.timeIn ? 'holiday' : r.isHoliday && r.timeIn ? 'on-time' : r.status
+              const s = STATUS[statusKey] ?? STATUS['on-time']
               return (
                 <div
                   key={r.id}
                   className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr] gap-4 items-center px-5 py-3.5 hover:bg-gray-50/80 transition-colors min-w-120"
                 >
                   <div>
-                    <p className="text-sm font-bold text-gray-800">{format(parseISO(r.date), 'EEE, MMM d')}</p>
+                    <p className="text-sm font-bold text-gray-800">
+                      {format(parseISO(r.date), 'EEE, MMM d')}
+                      {r.isHoliday && <span className="ml-1 text-[9px] font-bold text-purple-500 bg-purple-50 px-1.5 py-0.5 rounded-full">Holiday</span>}
+                    </p>
                     {r.isOT && (
                       <span className="text-[10px] font-bold text-orange-500">+{r.otHours.toFixed(1)}h OT</span>
                     )}
@@ -80,7 +86,7 @@ export default function RecentActivity({ records, settings }: Props) {
                   <span className={cn('text-[11px] px-2.5 py-1 rounded-full font-bold w-fit', s.cls)}>
                     {s.label}
                   </span>
-                  <p className="text-sm font-extrabold text-gray-900 text-right">
+                  <p className={`text-sm font-extrabold text-right ${r.dailyEarnings > 0 ? 'text-gray-900' : 'text-gray-400'}`}>
                     {formatCurrency(r.dailyEarnings, settings.currency)}
                   </p>
                 </div>

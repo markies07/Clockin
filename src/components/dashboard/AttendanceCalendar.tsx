@@ -216,7 +216,6 @@ export default function AttendanceCalendar({ records, settings, onSaveRecord, on
                 `}
               >
                 {format(date, 'd')}
-                {variant === 'holiday' && <span className="absolute top-0.5 right-0.5 text-[7px]">🎉</span>}
               </button>
             )
           })}

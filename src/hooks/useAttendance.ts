@@ -22,12 +22,15 @@ export function useAttendance(uid: string | null, settings: UserSettings | null,
   useEffect(() => {
     if (!uid || !settings) return
     getAllRecords(uid).then((raw) => {
-      // Recompute every record with current settings so stored stale values are corrected
+      // Recompute every record with current settings so stored stale values are corrected.
+      // Always trust the stored r.isHoliday flag — it was set manually by the user.
       const recomputed = raw.map((r) => {
-        const holiday = isHoliday(r.date, settings)
+        const holiday = r.isHoliday || isHoliday(r.date, settings)
         if (!r.timeIn) {
           const status: AttendanceRecord['status'] = r.isRestDay ? 'rest-day' : (holiday ? 'holiday' : 'absent')
-          return { ...r, status, isHoliday: holiday }
+          // Non-working holiday still earns 1× regular daily pay
+          const dailyEarnings = holiday && !r.isRestDay ? settings.rateAmount : 0
+          return { ...r, status, isHoliday: holiday, dailyEarnings }
         }
         const computed = computeRecord(r.timeIn, r.timeOut ?? null, settings, holiday, r.offsetUsed || 0)
         return { ...r, isHoliday: holiday, ...computed }
@@ -58,7 +61,7 @@ export function useAttendance(uid: string | null, settings: UserSettings | null,
   async function timeOut(manualTime?: string) {
     if (!uid || !settings || !todayRecord || todayRecord.timeOut) return
     const time = manualTime || getCurrentTime()
-    const holiday = isHoliday(today, settings)
+    const holiday = todayRecord.isHoliday || isHoliday(today, settings)
     const computed = computeRecord(todayRecord.timeIn, time, settings, holiday, todayRecord.offsetUsed || 0)
     
     // Update Offset Balance if applicable
@@ -92,7 +95,9 @@ export function useAttendance(uid: string | null, settings: UserSettings | null,
     const existing = records.find((r) => r.id === date)
 
     const computed = timeInVal ? computeRecord(timeInVal, timeOutVal, settings, holiday, offsetUsedVal) : {
-      isOT: false, lateMinutes: 0, otHours: 0, hoursWorked: 0, offsetUsed: offsetUsedVal, lateDeduction: 0, dailyEarnings: 0
+      isOT: false, lateMinutes: 0, otHours: 0, hoursWorked: 0, offsetUsed: offsetUsedVal, lateDeduction: 0,
+      // Non-working holiday still earns 1× regular daily pay
+      dailyEarnings: holiday && !isRestDayVal ? settings.rateAmount : 0,
     }
     
     // Update Offset Balance if applicable
