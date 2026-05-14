@@ -20,6 +20,8 @@ function LogPage() {
   const { records, loading } = useAttendance(user?.uid ?? null, settings, updateSettings)
   const [selectedMonth, setSelectedMonth] = useState(format(new Date(), 'yyyy-MM'))
   const [cutoff, setCutoff] = useState<Cutoff>('all')
+  const [page, setPage] = useState(1)
+  const PAGE_SIZE = 10
 
   if (!settings) return null
 
@@ -37,11 +39,12 @@ function LogPage() {
       .sort((a, b) => a.date.localeCompare(b.date)) // ascending
   }, [records, selectedMonth, cutoff, period1, period2])
 
-  // Summary totals
   const totalEarnings = filtered.reduce((s, r) => s + (r.dailyEarnings || 0), 0)
-  const totalHours    = filtered.reduce((s, r) => s + (r.hoursWorked || 0), 0)
-  const daysWorked    = filtered.filter((r) => !!r.timeIn).length
-  const daysAbsent    = filtered.filter((r) => r.status === 'absent').length
+
+  // Pagination: only active in 'all' view
+  const usePaging = cutoff === 'all'
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const displayed = usePaging ? filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE) : filtered
 
   function exportCSV() {
     const header = 'Date,Day,Time In,Time Out,Hours Worked,Status,Late (min),Late Deduction,OT Hours,Daily Earnings,Notes'
@@ -116,6 +119,7 @@ function LogPage() {
                     const d = new Date(selectedMonth + '-01')
                     d.setMonth(d.getMonth() - 1)
                     setSelectedMonth(format(d, 'yyyy-MM'))
+                    setPage(1)
                   }}
                   className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 transition-colors cursor-pointer"
                 >
@@ -129,6 +133,7 @@ function LogPage() {
                     const d = new Date(selectedMonth + '-01')
                     d.setMonth(d.getMonth() + 1)
                     setSelectedMonth(format(d, 'yyyy-MM'))
+                    setPage(1)
                   }}
                   className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 transition-colors cursor-pointer"
                 >
@@ -140,12 +145,12 @@ function LogPage() {
               <div className="flex items-center bg-white border border-gray-200 rounded-xl p-1 gap-1">
                 {([
                   { key: 'all', label: 'All' },
-                  { key: '1st', label: `1st Cutoff  (${format(parseISO(period1.cutoffStart), 'MMM d')}–${format(parseISO(period1.cutoffEnd), 'd')})` },
-                  { key: '2nd', label: `2nd Cutoff  (${format(parseISO(period2.cutoffStart), 'MMM d')}–${format(parseISO(period2.cutoffEnd), 'd')})` },
+                  { key: '1st', label: '1st Cutoff' },
+                  { key: '2nd', label: '2nd Cutoff' },
                 ] as { key: Cutoff; label: string }[]).map(({ key, label }) => (
                   <button
                     key={key}
-                    onClick={() => setCutoff(key)}
+                    onClick={() => { setCutoff(key); setPage(1) }}
                     className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
                       cutoff === key ? 'bg-emerald-500 text-white shadow-sm' : 'text-gray-400 hover:text-gray-700'
                     }`}
@@ -155,23 +160,6 @@ function LogPage() {
                 ))}
               </div>
             </div>
-
-            {/* Summary strip */}
-            {filtered.length > 0 && (
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                {[
-                  { label: 'Days Worked',   value: daysWorked.toString(),           color: 'text-emerald-600' },
-                  { label: 'Days Absent',   value: daysAbsent.toString(),           color: 'text-rose-500' },
-                  { label: 'Total Hours',   value: `${totalHours.toFixed(1)}h`,     color: 'text-indigo-600' },
-                  { label: 'Total Earned',  value: formatCurrency(totalEarnings, settings.currency), color: 'text-gray-900' },
-                ].map(({ label, value, color }) => (
-                  <div key={label} className="bg-white rounded-xl border border-gray-100 shadow-sm px-4 py-3">
-                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">{label}</p>
-                    <p className={`text-lg font-extrabold mt-0.5 ${color}`}>{value}</p>
-                  </div>
-                ))}
-              </div>
-            )}
 
             {/* Table */}
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
@@ -200,7 +188,7 @@ function LogPage() {
                         </td>
                       </tr>
                     ) : (
-                      filtered.map((r) => {
+                      displayed.map((r) => {
                         const statusKey = r.isHoliday && !r.timeIn ? 'holiday' : r.status
                         return (
                           <tr key={r.id} className={cn(
@@ -245,13 +233,48 @@ function LogPage() {
                 </table>
               </div>
 
-              {/* Footer total */}
+              {/* Footer: pagination (all) or total (cutoff) */}
               {filtered.length > 0 && (
                 <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100 bg-gray-50">
-                  <p className="text-xs font-bold text-gray-500">{filtered.length} records · {cutoffLabel}</p>
-                  <p className="text-sm font-extrabold text-gray-900">
-                    Total: {formatCurrency(totalEarnings, settings.currency)}
-                  </p>
+                  {usePaging ? (
+                    <>
+                      <p className="text-xs text-gray-400">
+                        {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length} records
+                      </p>
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => setPage((p) => Math.max(1, p - 1))}
+                          disabled={page === 1}
+                          className="w-7 h-7 rounded-lg border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                        >
+                          <ChevronLeft className="w-3.5 h-3.5" />
+                        </button>
+                        {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+                          <button
+                            key={p}
+                            onClick={() => setPage(p)}
+                            className={`w-7 h-7 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
+                              p === page ? 'bg-emerald-500 text-white' : 'border border-gray-200 text-gray-500 hover:bg-gray-50'
+                            }`}
+                          >
+                            {p}
+                          </button>
+                        ))}
+                        <button
+                          onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                          disabled={page === totalPages}
+                          className="w-7 h-7 rounded-lg border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                        >
+                          <ChevronRight className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-xs font-bold text-gray-500">{filtered.length} records</p>
+                      <p className="text-sm font-extrabold text-gray-900">Total: {formatCurrency(totalEarnings, settings.currency)}</p>
+                    </>
+                  )}
                 </div>
               )}
             </div>
