@@ -27,8 +27,8 @@ function getDayVariant(date: Date, recordMap: Record<string, AttendanceRecord>, 
   // Holiday takes priority over rest day — a rest day marked as holiday should show purple
   if (record?.isHoliday) return 'holiday'
   if (isHoliday(dateStr, settings)) return 'holiday'
-  if (record?.isRestDay) return 'rest'
-  if (isRestDay(dateStr, settings)) return 'rest'
+  // Only show as rest day if user hasn't actually clocked in (working on rest day overrides it)
+  if (!record?.timeIn && (record?.isRestDay || isRestDay(dateStr, settings))) return 'rest'
   if (isFuture(date) && !isToday(date)) return 'future'
   if (!record || !record.timeIn) return isToday(date) ? 'today-empty' : 'absent'
   if (record.isOT) return 'ot'

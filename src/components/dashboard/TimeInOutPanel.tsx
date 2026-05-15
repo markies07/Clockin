@@ -26,6 +26,7 @@ export default function TimeInOutPanel({ todayRecord, startTime, onTimeIn, onTim
   const [loading, setLoading] = useState(false)
   const [liveTime, setLiveTime] = useState(new Date())
   const [workedOnHoliday, setWorkedOnHoliday] = useState(false)
+  const [workedOnRestDay, setWorkedOnRestDay] = useState(false)
 
   useEffect(() => {
     const t = setInterval(() => {
@@ -117,21 +118,55 @@ export default function TimeInOutPanel({ todayRecord, startTime, onTimeIn, onTim
         </div>
 
         {isRestDay ? (
-          <div className="flex-1 flex flex-col items-center justify-center text-center space-y-6 animate-in fade-in zoom-in duration-500 py-10">
-            <div className="w-20 h-20 bg-emerald-50 rounded-full flex items-center justify-center border border-emerald-100 shadow-sm">
-              <span className="text-4xl">🧘</span>
-            </div>
-            <div className="space-y-2">
-              <p className="text-xl font-black text-gray-900 tracking-tight">Time to Relax!</p>
-              <p className="text-sm text-gray-500 font-medium leading-relaxed max-w-[240px] mx-auto">
-                {quote}
-              </p>
-            </div>
-            <div className="pt-4">
+          <div className="space-y-4">
+            <div className="flex flex-col items-center text-center space-y-4 animate-in fade-in zoom-in duration-500 py-6">
+              <div className="w-20 h-20 bg-emerald-50 rounded-full flex items-center justify-center border border-emerald-100 shadow-sm">
+                <span className="text-4xl">🧘</span>
+              </div>
+              <div className="space-y-2">
+                <p className="text-xl font-black text-gray-900 tracking-tight">Time to Relax!</p>
+                <p className="text-sm text-gray-500 font-medium leading-relaxed max-w-60 mx-auto">
+                  {quote}
+                </p>
+              </div>
               <span className="text-[11px] font-bold text-emerald-600 bg-emerald-50 px-4 py-1.5 rounded-full uppercase tracking-widest border border-emerald-100">
                 Scheduled Rest Day
               </span>
             </div>
+            {/* Option to work on rest day */}
+            <button
+              type="button"
+              onClick={() => setWorkedOnRestDay(v => !v)}
+              className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border-2 transition-all cursor-pointer ${
+                workedOnRestDay ? 'border-emerald-400 bg-emerald-50' : 'border-gray-200 bg-white hover:border-gray-300'
+              }`}
+            >
+              <span className={`text-sm font-bold ${workedOnRestDay ? 'text-emerald-700' : 'text-gray-500'}`}>I went to work today</span>
+              <span className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${workedOnRestDay ? 'border-emerald-500 bg-emerald-500' : 'border-gray-300'}`}>
+                {workedOnRestDay && <span className="w-2 h-2 rounded-full bg-white block" />}
+              </span>
+            </button>
+            {workedOnRestDay && (
+              <div className="bg-gray-50 rounded-xl border border-gray-200 p-4 space-y-3">
+                <p className="text-xs font-bold text-gray-600 uppercase tracking-wide">Set your arrival time</p>
+                <input
+                  type="time"
+                  value={timeInValue}
+                  onChange={(e) => setTimeInValue(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-800 focus:outline-none focus:ring-2 focus:ring-emerald-400/30 focus:border-emerald-400 cursor-pointer"
+                />
+                <button
+                  onClick={handleTimeIn}
+                  disabled={loading}
+                  className="w-full flex items-center justify-center gap-2 disabled:opacity-60 text-white font-bold py-2.5 rounded-xl transition-colors cursor-pointer text-sm shadow-sm bg-emerald-500 hover:bg-emerald-600 shadow-emerald-200"
+                >
+                  {loading
+                    ? <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                    : <><LogIn className="w-4 h-4" /> Clock In</>
+                  }
+                </button>
+              </div>
+            )}
           </div>
         ) : (
           <>
